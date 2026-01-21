@@ -19,6 +19,7 @@ func GetAllCommands() []*Command {
 	return []*Command{
 		pingCommand(),
 		helpCommand(),
+		focusCommand(),
 	}
 }
 
@@ -79,18 +80,18 @@ func helpCommand() *Command {
 				Color:       0x5865F2, // Discord blurple
 				Fields: []*discordgo.MessageEmbedField{
 					{
-						Name:   "📋 Available Commands",
+						Name:   "🎯 Focus Period Commands",
+						Value:  "`/focus start` - Start a new 2-week Focus Period\n`/focus add <goal>` - Add a goal to your period\n`/focus complete <#>` - Mark a goal as done\n`/focus list` - View your goals\n`/focus status` - See your progress",
+						Inline: false,
+					},
+					{
+						Name:   "📋 General Commands",
 						Value:  "`/ping` - Check if the bot is responsive\n`/help` - Show this help message",
 						Inline: false,
 					},
 					{
-						Name:   "🎯 Our Mission",
-						Value:  "Empowering solo founders with tools and community support to build successful businesses.",
-						Inline: false,
-					},
-					{
-						Name:   "💡 Coming Soon",
-						Value:  "More features to help you on your founder journey - stay tuned!",
+						Name:   "🚀 About Focus Periods",
+						Value:  "Set goals for 2-week sprints and track your progress. Stay accountable with reminders on days 3, 7, 10, 12, and 13!",
 						Inline: false,
 					},
 				},

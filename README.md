@@ -4,6 +4,20 @@ A Discord bot built for the Bootstrap Hub community - a server dedicated to solo
 
 ## Features
 
+### Focus Periods (2-Week Goal Tracking)
+Track your goals in 2-week "Focus Periods" - like sprints, but for founders!
+
+- `/focus start` - Start a new 2-week Focus Period
+- `/focus add <goal>` - Add a goal to your current period
+- `/focus complete <number>` - Mark a goal as completed
+- `/focus list` - View all your goals and their status
+- `/focus status` - Get an overview of your progress
+
+### Automatic Reminders
+- **Progress reminders** on days 3, 7, 10, 12, and 13 of your Focus Period
+- **Goal-setting reminders** if you have fewer than 3 goals set
+
+### General Commands
 - `/ping` - Test command to check if the bot is responsive
 - `/help` - Get information about the bot and available commands
 
@@ -44,10 +58,14 @@ Fill in your `.env` file:
 ```
 DISCORD_BOT_TOKEN=your_bot_token_here
 DISCORD_APPLICATION_ID=your_application_id_here
-DISCORD_GUILD_ID=your_server_id_here  # Optional, for faster command registration during development
+DISCORD_GUILD_ID=your_server_id_here  # Optional, for faster command registration
+DISCORD_REMINDER_CHANNEL_ID=your_channel_id_here  # Optional, for reminder messages
+DATABASE_PATH=data/bootstrap_hub.db  # Optional, default path shown
 ```
 
-**Note**: Setting `DISCORD_GUILD_ID` registers commands only to that server (instant). Leaving it empty registers commands globally (can take up to 1 hour).
+**Notes**:
+- Setting `DISCORD_GUILD_ID` registers commands only to that server (instant). Leaving it empty registers commands globally (can take up to 1 hour).
+- Setting `DISCORD_REMINDER_CHANNEL_ID` enables automatic reminder messages. To get a channel ID, enable Developer Mode in Discord settings, then right-click the channel and select "Copy Channel ID".
 
 ### 4. Install Dependencies
 
@@ -78,7 +96,7 @@ Click the URL and select your server to add the bot.
 make run
 ```
 
-## Available Commands
+## Makefile Commands
 
 | Command | Description |
 |---------|-------------|
@@ -103,9 +121,17 @@ bootstrap-hub-bot/
 │   ├── bot/
 │   │   └── bot.go            # Bot initialization and handlers
 │   ├── commands/
-│   │   └── commands.go       # Slash command definitions
-│   └── config/
-│       └── config.go         # Configuration loading
+│   │   ├── commands.go       # Base command definitions
+│   │   └── focus.go          # Focus Period commands
+│   ├── config/
+│   │   └── config.go         # Configuration loading
+│   ├── database/
+│   │   ├── database.go       # Database operations
+│   │   └── models.go         # Data models
+│   └── scheduler/
+│       └── scheduler.go      # Reminder scheduler
+├── data/
+│   └── bootstrap_hub.db      # SQLite database (created on first run)
 ├── .env.example              # Example environment variables
 ├── .gitignore                # Git ignore file
 ├── go.mod                    # Go module file
@@ -113,6 +139,21 @@ bootstrap-hub-bot/
 ├── Makefile                  # Build automation
 └── README.md                 # This file
 ```
+
+## How Focus Periods Work
+
+1. **Start a Focus Period**: Use `/focus start` to begin a new 2-week period
+2. **Add Goals**: Use `/focus add <goal>` to add goals (aim for at least 3!)
+3. **Track Progress**: Use `/focus list` to see your goals and `/focus status` for an overview
+4. **Complete Goals**: Use `/focus complete <number>` to mark goals as done
+5. **Stay Accountable**: Receive reminders throughout the period to keep you on track
+
+### Reminder Schedule
+- **Day 3**: Early check-in to build momentum
+- **Day 7**: Halfway point review
+- **Day 10**: Final stretch begins
+- **Day 12**: Two days remaining
+- **Day 13**: Last day reminder for final push
 
 ## Adding New Commands
 
@@ -139,6 +180,7 @@ bootstrap-hub-bot/
 - Use `DISCORD_GUILD_ID` during development for instant command updates
 - Remove the guild ID for production to register commands globally
 - Global commands can take up to 1 hour to appear in all servers
+- The database is automatically created on first run
 
 ## Troubleshooting
 
@@ -151,6 +193,11 @@ bootstrap-hub-bot/
 - Check that the bot is online in your server
 - Verify your bot token is correct
 - Check the console for error messages
+
+### Reminders not working
+- Ensure `DISCORD_REMINDER_CHANNEL_ID` is set in your `.env` file
+- Verify the bot has permission to send messages in that channel
+- Reminders are checked hourly and sent around 9 AM server time
 
 ### Permission errors
 - Ensure the bot has the necessary permissions in your server

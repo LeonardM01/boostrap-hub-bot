@@ -6,13 +6,15 @@ import (
 
 	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/commands"
 	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/config"
+	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/scheduler"
 	"github.com/bwmarrin/discordgo"
 )
 
 // Bot represents the Discord bot instance
 type Bot struct {
-	Session *discordgo.Session
-	Config  *config.Config
+	Session   *discordgo.Session
+	Config    *config.Config
+	Scheduler *scheduler.Scheduler
 }
 
 // New creates a new Bot instance
@@ -46,6 +48,14 @@ func (b *Bot) Start() error {
 		return fmt.Errorf("failed to open Discord connection: %w", err)
 	}
 
+	// Start the reminder scheduler if a channel is configured
+	if b.Config.ReminderChannelID != "" {
+		b.Scheduler = scheduler.New(b.Session, b.Config.ReminderChannelID)
+		b.Scheduler.Start()
+	} else {
+		log.Println("No reminder channel configured, scheduler not started")
+	}
+
 	log.Println("Bootstrap Hub Bot is now running!")
 	return nil
 }
@@ -53,6 +63,12 @@ func (b *Bot) Start() error {
 // Stop gracefully closes the Discord connection
 func (b *Bot) Stop() error {
 	log.Println("Shutting down Bootstrap Hub Bot...")
+
+	// Stop the scheduler if running
+	if b.Scheduler != nil {
+		b.Scheduler.Stop()
+	}
+
 	return b.Session.Close()
 }
 

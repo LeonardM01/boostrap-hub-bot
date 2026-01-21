@@ -5,10 +5,12 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/bot"
 	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/config"
+	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/database"
 )
 
 func main() {
@@ -22,6 +24,17 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Ensure data directory exists
+	dbDir := filepath.Dir(cfg.DatabasePath)
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		log.Fatalf("Failed to create data directory: %v", err)
+	}
+
+	// Initialize database
+	if err := database.Initialize(cfg.DatabasePath); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
 	// Create bot instance
