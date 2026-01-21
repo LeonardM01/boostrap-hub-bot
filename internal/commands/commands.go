@@ -1,0 +1,113 @@
+package commands
+
+import (
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/bwmarrin/discordgo"
+)
+
+// Command represents a slash command with its definition and handler
+type Command struct {
+	Definition *discordgo.ApplicationCommand
+	Handler    func(s *discordgo.Session, i *discordgo.InteractionCreate)
+}
+
+// GetAllCommands returns all available bot commands
+func GetAllCommands() []*Command {
+	return []*Command{
+		pingCommand(),
+		helpCommand(),
+	}
+}
+
+// GetCommandDefinitions returns just the command definitions for registration
+func GetCommandDefinitions() []*discordgo.ApplicationCommand {
+	commands := GetAllCommands()
+	definitions := make([]*discordgo.ApplicationCommand, len(commands))
+	for i, cmd := range commands {
+		definitions[i] = cmd.Definition
+	}
+	return definitions
+}
+
+// GetHandlers returns a map of command names to their handlers
+func GetHandlers() map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	commands := GetAllCommands()
+	handlers := make(map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate))
+	for _, cmd := range commands {
+		handlers[cmd.Definition.Name] = cmd.Handler
+	}
+	return handlers
+}
+
+// pingCommand creates the ping/pong test command
+func pingCommand() *Command {
+	return &Command{
+		Definition: &discordgo.ApplicationCommand{
+			Name:        "ping",
+			Description: "Test if the Bootstrap Hub Bot is responsive - responds with Pong!",
+		},
+		Handler: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			start := time.Now()
+
+			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: fmt.Sprintf("🏓 Pong! Latency: %dms\n\n*Bootstrap Hub Bot is here to help founders on their journey!*", time.Since(start).Milliseconds()),
+				},
+			})
+			if err != nil {
+				log.Printf("Error responding to ping command: %v", err)
+			}
+		},
+	}
+}
+
+// helpCommand creates the help command
+func helpCommand() *Command {
+	return &Command{
+		Definition: &discordgo.ApplicationCommand{
+			Name:        "help",
+			Description: "Get information about Bootstrap Hub Bot and available commands",
+		},
+		Handler: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			embed := &discordgo.MessageEmbed{
+				Title:       "🚀 Bootstrap Hub Bot",
+				Description: "Welcome to Bootstrap Hub! I'm your AI-powered assistant designed to help solo founders and entrepreneurs on their business journey.",
+				Color:       0x5865F2, // Discord blurple
+				Fields: []*discordgo.MessageEmbedField{
+					{
+						Name:   "📋 Available Commands",
+						Value:  "`/ping` - Check if the bot is responsive\n`/help` - Show this help message",
+						Inline: false,
+					},
+					{
+						Name:   "🎯 Our Mission",
+						Value:  "Empowering solo founders with tools and community support to build successful businesses.",
+						Inline: false,
+					},
+					{
+						Name:   "💡 Coming Soon",
+						Value:  "More features to help you on your founder journey - stay tuned!",
+						Inline: false,
+					},
+				},
+				Footer: &discordgo.MessageEmbedFooter{
+					Text: "Bootstrap Hub Bot • Built for Founders, by Founders",
+				},
+			}
+
+			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Embeds: []*discordgo.MessageEmbed{embed},
+				},
+			})
+			if err != nil {
+				log.Printf("Error responding to help command: %v", err)
+			}
+		},
+	}
+}
