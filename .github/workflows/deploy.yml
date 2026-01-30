@@ -1,0 +1,108 @@
+name: Deploy Bootstrap Hub Bot
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t bootstrap-hub-bot:latest -t bootstrap-hub-bot:${{ github.sha }} .
+
+      - name: Create backups directory
+        run: mkdir -p backups
+
+      - name: Backup existing database
+        run: |
+          if docker volume inspect bootstrap-hub-bot-data >/dev/null 2>&1; then
+            echo "Creating database backup..."
+            docker run --rm \
+              -v bootstrap-hub-bot-data:/data \
+              -v $(pwd)/backups:/backup \
+              alpine tar czf /backup/db-backup-$(date +%Y%m%d-%H%M%S).tar.gz -C /data . 2>/dev/null || echo "No data to backup"
+          else
+            echo "No existing volume to backup"
+          fi
+
+      - name: Stop existing container
+        run: |
+          if docker ps -q -f name=bootstrap-hub-bot | grep -q .; then
+            echo "Stopping existing container..."
+            docker stop -t 30 bootstrap-hub-bot || true
+          fi
+        continue-on-error: true
+
+      - name: Remove old container
+        run: |
+          if docker ps -aq -f name=bootstrap-hub-bot | grep -q .; then
+            echo "Removing old container..."
+            docker rm bootstrap-hub-bot || true
+          fi
+        continue-on-error: true
+
+      - name: Ensure data volume exists
+        run: |
+          docker volume create bootstrap-hub-bot-data || true
+
+      - name: Start new container
+        run: |
+          docker run -d \
+            --name bootstrap-hub-bot \
+            --restart unless-stopped \
+            -v bootstrap-hub-bot-data:/app/data \
+            -e DISCORD_BOT_TOKEN="${{ secrets.DISCORD_BOT_TOKEN }}" \
+            -e DISCORD_APPLICATION_ID="${{ secrets.DISCORD_APPLICATION_ID }}" \
+            -e DISCORD_GUILD_ID="${{ secrets.DISCORD_GUILD_ID }}" \
+            -e DISCORD_REMINDER_CHANNEL_ID="${{ secrets.DISCORD_REMINDER_CHANNEL_ID }}" \
+            -e DATABASE_PATH="/app/data/bootstrap_hub.db" \
+            bootstrap-hub-bot:latest
+
+      - name: Wait for container to be running
+        run: |
+          for i in {1..30}; do
+            if docker ps -q -f name=bootstrap-hub-bot -f status=running | grep -q .; then
+              echo "Container is running"
+              exit 0
+            fi
+            echo "Waiting for container to start... ($i/30)"
+            sleep 2
+          done
+          echo "Container failed to start"
+          docker logs bootstrap-hub-bot
+          exit 1
+
+      - name: Auto-register Discord commands
+        run: |
+          echo "Registering Discord slash commands..."
+          docker exec bootstrap-hub-bot ./bootstrap-hub-bot -register
+          echo "Commands registered successfully"
+
+      - name: Verify deployment
+        run: |
+          echo "=== Container Status ==="
+          docker ps -f name=bootstrap-hub-bot
+          echo ""
+          echo "=== Recent Logs ==="
+          docker logs --tail 50 bootstrap-hub-bot
+
+      - name: Cleanup old images
+        run: |
+          echo "Cleaning up old Docker images (keeping last 5)..."
+          docker images bootstrap-hub-bot --format "{{.ID}} {{.Tag}}" | \
+            grep -v latest | \
+            tail -n +6 | \
+            awk '{print $1}' | \
+            xargs -r docker rmi -f || true
+
+      - name: Cleanup old backups
+        run: |
+          echo "Cleaning up old backups (keeping last 10)..."
+          cd backups && ls -t db-backup-*.tar.gz 2>/dev/null | tail -n +11 | xargs -r rm -f || true

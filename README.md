@@ -96,6 +96,79 @@ Click the URL and select your server to add the bot.
 make run
 ```
 
+## Docker Deployment
+
+### Quick Start with Docker Compose
+
+For local development and testing:
+
+```bash
+# 1. Create your .env file with credentials
+cp .env.example .env
+# Edit .env with your Discord credentials
+
+# 2. Build and start the bot
+docker-compose up -d
+
+# 3. Register Discord commands
+docker exec bootstrap-hub-bot ./bootstrap-hub-bot -register
+
+# 4. View logs
+docker-compose logs -f
+```
+
+### Production Deployment with GitHub Actions
+
+The bot includes automated Docker deployment via GitHub Actions that triggers on every push to `main`.
+
+**One-Time Setup:**
+
+1. **Configure GitHub Secrets** (Repository → Settings → Secrets → Actions):
+   - `DISCORD_BOT_TOKEN` (required)
+   - `DISCORD_APPLICATION_ID` (required)
+   - `DISCORD_GUILD_ID` (optional)
+   - `DISCORD_REMINDER_CHANNEL_ID` (optional)
+
+2. **Set up a self-hosted runner** on your deployment server
+
+3. **Create backups directory** on the runner:
+   ```bash
+   mkdir -p backups
+   ```
+
+**Automated Deployment Features:**
+- Builds Docker image locally on push to `main`
+- Creates automatic database backup before deployment
+- Zero-downtime deployment with graceful shutdown
+- Auto-registration of Discord slash commands
+- Keeps last 5 Docker images for rollback
+- Keeps last 10 database backups
+- Persistent database storage via Docker volumes
+
+**Manual Operations:**
+
+```bash
+# View running container
+docker ps -f name=bootstrap-hub-bot
+
+# View logs
+docker logs -f bootstrap-hub-bot
+
+# Manual backup
+docker run --rm \
+  -v bootstrap-hub-bot-data:/data \
+  -v $(pwd)/backups:/backup \
+  alpine tar czf /backup/manual-backup-$(date +%Y%m%d-%H%M%S).tar.gz -C /data .
+
+# Restore from backup
+docker stop bootstrap-hub-bot
+docker run --rm \
+  -v bootstrap-hub-bot-data:/data \
+  -v $(pwd)/backups:/backup \
+  alpine sh -c "rm -rf /data/* && tar xzf /backup/db-backup-YYYYMMDD-HHMMSS.tar.gz -C /data"
+docker start bootstrap-hub-bot
+```
+
 ## Makefile Commands
 
 | Command | Description |

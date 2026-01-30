@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bootstrap-hub-bot:latest
+    container_name: bootstrap-hub-bot
+    restart: unless-stopped
+    volumes:
+      - bootstrap-hub-bot-data:/app/data
+    env_file:
+      - .env
+    environment:
+      - DATABASE_PATH=/app/data/bootstrap_hub.db
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  bootstrap-hub-bot-data:
+    name: bootstrap-hub-bot-data

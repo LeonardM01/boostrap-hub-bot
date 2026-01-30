@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+.github
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+bin/
+*.test
+*.out
+
+# Database files (will be in volume)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Documentation
+README.md
+CLAUDE.md
+docs/
+
+# CI/CD
+.github/
+docker-compose.yml
+
+# Backups
+backups/
+
+# Temporary files
+tmp/
+temp/
