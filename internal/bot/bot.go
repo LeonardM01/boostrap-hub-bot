@@ -6,7 +6,9 @@ import (
 
 	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/commands"
 	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/config"
+	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/database"
 	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/scheduler"
+	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/voter"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -15,6 +17,7 @@ type Bot struct {
 	Session   *discordgo.Session
 	Config    *config.Config
 	Scheduler *scheduler.Scheduler
+	Voter     *voter.Voter
 }
 
 // New creates a new Bot instance
@@ -35,13 +38,17 @@ func New(cfg *config.Config) (*Bot, error) {
 	// Register the ready handler
 	session.AddHandler(bot.handleReady)
 
+	// Register reaction handlers for resource voting
+	session.AddHandler(bot.handleMessageReactionAdd)
+	session.AddHandler(bot.handleMessageReactionRemove)
+
 	return bot, nil
 }
 
 // Start opens the Discord connection and starts listening
 func (b *Bot) Start() error {
-	// Set intents - we need guilds for slash commands
-	b.Session.Identify.Intents = discordgo.IntentsGuilds
+	// Set intents - we need guilds for slash commands and reactions for resource voting
+	b.Session.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMessageReactions
 
 	err := b.Session.Open()
 	if err != nil {
@@ -56,6 +63,10 @@ func (b *Bot) Start() error {
 		log.Println("No reminder channel configured, scheduler not started")
 	}
 
+	// Start the vote processor
+	b.Voter = voter.New(b.Session)
+	b.Voter.Start()
+
 	log.Println("Bootstrap Hub Bot is now running!")
 	return nil
 }
@@ -67,6 +78,11 @@ func (b *Bot) Stop() error {
 	// Stop the scheduler if running
 	if b.Scheduler != nil {
 		b.Scheduler.Stop()
+	}
+
+	// Stop the voter if running
+	if b.Voter != nil {
+		b.Voter.Stop()
 	}
 
 	return b.Session.Close()
@@ -147,11 +163,74 @@ func (b *Bot) GetInviteURL() string {
 	// - Use Slash Commands (2147483648)
 	// - Embed Links (16384)
 	// - Read Message History (65536)
-	// Combined: 2147567616
-	permissions := "2147567616"
+	// - Add Reactions (64)
+	// Combined: 2147567680
+	permissions := "2147567680"
 	return fmt.Sprintf(
 		"https://discord.com/api/oauth2/authorize?client_id=%s&permissions=%s&scope=bot%%20applications.commands",
 		b.Config.ApplicationID,
 		permissions,
 	)
+}
+
+// handleMessageReactionAdd handles reaction additions for resource voting
+func (b *Bot) handleMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
+	// Ignore bot's own reactions
+	if r.UserID == s.State.User.ID {
+		return
+	}
+
+	// Look up resource by message ID
+	resource, err := database.GetPublicResourceByVoteMessageID(r.MessageID)
+	if err != nil {
+		log.Printf("Error fetching resource by message ID: %v", err)
+		return
+	}
+
+	// If no resource found or not pending, ignore
+	if resource == nil || resource.Status != database.ResourceStatusPending {
+		return
+	}
+
+	// Only count valid emoji reactions
+	if r.Emoji.Name == "👍" {
+		if err := database.IncrementUsefulVotes(resource.ID); err != nil {
+			log.Printf("Error incrementing useful votes: %v", err)
+		}
+	} else if r.Emoji.Name == "👎" {
+		if err := database.IncrementNotUsefulVotes(resource.ID); err != nil {
+			log.Printf("Error incrementing not useful votes: %v", err)
+		}
+	}
+}
+
+// handleMessageReactionRemove handles reaction removals for resource voting
+func (b *Bot) handleMessageReactionRemove(s *discordgo.Session, r *discordgo.MessageReactionRemove) {
+	// Ignore bot's own reactions
+	if r.UserID == s.State.User.ID {
+		return
+	}
+
+	// Look up resource by message ID
+	resource, err := database.GetPublicResourceByVoteMessageID(r.MessageID)
+	if err != nil {
+		log.Printf("Error fetching resource by message ID: %v", err)
+		return
+	}
+
+	// If no resource found or not pending, ignore
+	if resource == nil || resource.Status != database.ResourceStatusPending {
+		return
+	}
+
+	// Only count valid emoji reactions
+	if r.Emoji.Name == "👍" {
+		if err := database.DecrementUsefulVotes(resource.ID); err != nil {
+			log.Printf("Error decrementing useful votes: %v", err)
+		}
+	} else if r.Emoji.Name == "👎" {
+		if err := database.DecrementNotUsefulVotes(resource.ID); err != nil {
+			log.Printf("Error decrementing not useful votes: %v", err)
+		}
+	}
 }

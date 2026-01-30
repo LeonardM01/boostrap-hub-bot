@@ -20,6 +20,7 @@ func GetAllCommands() []*Command {
 		pingCommand(),
 		helpCommand(),
 		focusCommand(),
+		resourceCommand(),
 	}
 }
 

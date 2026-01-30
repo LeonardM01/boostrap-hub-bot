@@ -24,9 +24,22 @@ func Initialize(dbPath string) error {
 	}
 
 	// Run migrations
-	err = DB.AutoMigrate(&User{}, &FocusPeriod{}, &Task{})
+	err = DB.AutoMigrate(
+		&User{},
+		&FocusPeriod{},
+		&Task{},
+		&PublicResource{},
+		&PrivateResource{},
+		&PrivateResourceRole{},
+	)
 	if err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	// Create composite unique index for PrivateResourceRole
+	err = DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_private_resource_role_unique ON private_resource_roles(private_resource_id, role_id)").Error
+	if err != nil {
+		return fmt.Errorf("failed to create unique index: %w", err)
 	}
 
 	log.Println("Database initialized successfully")

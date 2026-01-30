@@ -45,6 +45,70 @@ const (
 	TaskStatusCompleted TaskStatus = "completed"
 )
 
+// PublicResource represents a community-vetted resource with emoji voting
+type PublicResource struct {
+	gorm.Model
+	GuildID           string `gorm:"index;not null"`
+	SubmitterID       string `gorm:"not null"` // Discord user ID
+	SubmitterUsername string
+
+	// Resource details
+	URL         string `gorm:"not null"`
+	Title       string `gorm:"not null"`
+	Description string `gorm:"type:text"`
+	Category    string `gorm:"index"`
+	Tags        string // Comma-separated
+
+	// Voting tracking
+	VoteMessageID string    `gorm:"uniqueIndex"` // Message with reactions
+	VoteChannelID string
+	VoteExpiresAt time.Time
+
+	// Vote counts
+	UsefulVotes    int `gorm:"default:0"`
+	NotUsefulVotes int `gorm:"default:0"`
+
+	// Status
+	Status      ResourceStatus `gorm:"index;default:'pending'"`
+	ProcessedAt *time.Time
+}
+
+// PrivateResource represents role-based resource sharing
+type PrivateResource struct {
+	gorm.Model
+	GuildID       string `gorm:"index;not null"`
+	OwnerID       string `gorm:"not null"`
+	OwnerUsername string
+
+	// Resource details
+	URL         string `gorm:"not null"`
+	Title       string `gorm:"not null"`
+	Description string `gorm:"type:text"`
+	Category    string `gorm:"index"`
+	Tags        string
+
+	// Access control
+	AllowedRoles []PrivateResourceRole `gorm:"foreignKey:PrivateResourceID"`
+}
+
+// PrivateResourceRole links private resources to Discord roles
+type PrivateResourceRole struct {
+	gorm.Model
+	PrivateResourceID uint            `gorm:"index;not null"`
+	PrivateResource   PrivateResource `gorm:"foreignKey:PrivateResourceID"`
+	RoleID            string          `gorm:"index;not null"` // Discord role ID
+	RoleName          string          // Cached role name
+}
+
+// ResourceStatus represents the approval status of a public resource
+type ResourceStatus string
+
+const (
+	ResourceStatusPending  ResourceStatus = "pending"
+	ResourceStatusApproved ResourceStatus = "approved"
+	ResourceStatusRejected ResourceStatus = "rejected"
+)
+
 // FocusPeriodDuration is the length of a focus period
 const FocusPeriodDuration = 14 * 24 * time.Hour // 2 weeks
 
