@@ -319,6 +319,9 @@ func handleFocusComplete(s *discordgo.Session, i *discordgo.InteractionCreate, u
 	}
 
 	respondWithEmbed(s, i, embed)
+
+	// Notify buddies of task completion
+	go NotifyBuddiesOfCompletion(s, user, guildID, task)
 }
 
 func handleFocusList(s *discordgo.Session, i *discordgo.InteractionCreate, user *database.User) {

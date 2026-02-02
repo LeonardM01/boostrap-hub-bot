@@ -117,6 +117,8 @@ type GuildConfig struct {
 	gorm.Model
 	GuildID            string `gorm:"uniqueIndex;not null"` // Discord guild/server ID
 	LeaderboardChannel string // Channel ID for automated leaderboard posts
+	WinsChannel        string // Channel ID for win celebrations
+	MRRChannel         string // Channel ID for MRR milestone announcements
 }
 
 // SprintPoints tracks points earned in a specific focus period
@@ -130,6 +132,179 @@ type SprintPoints struct {
 	Points        int         `gorm:"default:0"`
 	StartDate     time.Time   `gorm:"not null;index"` // Cached from FocusPeriod for easier querying
 	EndDate       time.Time   `gorm:"not null;index"`
+}
+
+// Standup represents a daily standup/check-in
+type Standup struct {
+	gorm.Model
+	UserID       uint      `gorm:"index;not null"`
+	User         User      `gorm:"foreignKey:UserID"`
+	GuildID      string    `gorm:"index;not null"`
+	Date         time.Time `gorm:"index;not null"`
+	Accomplished string    `gorm:"type:text"`
+	WorkingOn    string    `gorm:"type:text;not null"`
+	Blockers     string    `gorm:"type:text"`
+}
+
+// UserStreak tracks daily standup streaks for a user
+type UserStreak struct {
+	gorm.Model
+	UserID          uint       `gorm:"uniqueIndex:idx_user_guild_streak;not null"`
+	User            User       `gorm:"foreignKey:UserID"`
+	GuildID         string     `gorm:"uniqueIndex:idx_user_guild_streak;not null"`
+	CurrentStreak   int        `gorm:"default:0"`
+	LongestStreak   int        `gorm:"default:0"`
+	LastStandupDate *time.Time
+	TotalStandups   int `gorm:"default:0"`
+}
+
+// Win represents a user-shared win/celebration
+type Win struct {
+	gorm.Model
+	UserID     uint      `gorm:"index;not null"`
+	User       User      `gorm:"foreignKey:UserID"`
+	GuildID    string    `gorm:"index;not null"`
+	Message    string    `gorm:"type:text;not null"`
+	MessageID  string    // Discord message ID if posted to wins channel
+	Category   string    // revenue, product, marketing, customer, other
+	CreatedAt  time.Time `gorm:"index"`
+}
+
+// WinCategory constants
+const (
+	WinCategoryRevenue   = "revenue"
+	WinCategoryProduct   = "product"
+	WinCategoryMarketing = "marketing"
+	WinCategoryCustomer  = "customer"
+	WinCategoryOther     = "other"
+)
+
+// BuddyRequest represents a pending accountability buddy request
+type BuddyRequest struct {
+	gorm.Model
+	RequesterID uint      `gorm:"index;not null"`
+	Requester   User      `gorm:"foreignKey:RequesterID"`
+	ReceiverID  uint      `gorm:"index;not null"`
+	Receiver    User      `gorm:"foreignKey:ReceiverID"`
+	GuildID     string    `gorm:"index;not null"`
+	Status      string    `gorm:"default:'pending'"` // pending, accepted, declined
+	ExpiresAt   time.Time
+}
+
+// BuddyRequestStatus constants
+const (
+	BuddyRequestStatusPending  = "pending"
+	BuddyRequestStatusAccepted = "accepted"
+	BuddyRequestStatusDeclined = "declined"
+)
+
+// BuddyPair represents an active accountability buddy relationship
+type BuddyPair struct {
+	gorm.Model
+	User1ID            uint   `gorm:"index;not null"`
+	User1              User   `gorm:"foreignKey:User1ID"`
+	User2ID            uint   `gorm:"index;not null"`
+	User2              User   `gorm:"foreignKey:User2ID"`
+	GuildID            string `gorm:"index;not null"`
+	NotifyOnCompletion bool   `gorm:"default:true"`
+}
+
+// MaxBuddiesPerUser is the maximum number of buddies a user can have
+const MaxBuddiesPerUser = 3
+
+// Challenge represents a time-boxed challenge between buddies
+type Challenge struct {
+	gorm.Model
+	CreatorID        uint      `gorm:"index;not null"`
+	Creator          User      `gorm:"foreignKey:CreatorID"`
+	GuildID          string    `gorm:"index;not null"`
+	Title            string    `gorm:"not null"`
+	Description      string    `gorm:"type:text"`
+	StartDate        time.Time
+	EndDate          time.Time `gorm:"index"`
+	Status           string    `gorm:"default:'active'"` // active, completed, failed
+	PointsMultiplier float64   `gorm:"default:1.5"`
+}
+
+// ChallengeStatus constants
+const (
+	ChallengeStatusActive    = "active"
+	ChallengeStatusCompleted = "completed"
+	ChallengeStatusFailed    = "failed"
+)
+
+// ChallengeParticipant represents a user's participation in a challenge
+type ChallengeParticipant struct {
+	gorm.Model
+	ChallengeID uint      `gorm:"index;not null"`
+	Challenge   Challenge `gorm:"foreignKey:ChallengeID"`
+	UserID      uint      `gorm:"index;not null"`
+	User        User      `gorm:"foreignKey:UserID"`
+	Status      string    `gorm:"default:'active'"` // active, pending_validation, completed, failed
+	ProofURL    string
+	CompletedAt *time.Time
+}
+
+// ChallengeParticipantStatus constants
+const (
+	ChallengeParticipantStatusActive            = "active"
+	ChallengeParticipantStatusPendingValidation = "pending_validation"
+	ChallengeParticipantStatusCompleted         = "completed"
+	ChallengeParticipantStatusFailed            = "failed"
+)
+
+// ChallengeProgress represents a progress update on a challenge
+type ChallengeProgress struct {
+	gorm.Model
+	ChallengeID uint      `gorm:"index;not null"`
+	Challenge   Challenge `gorm:"foreignKey:ChallengeID"`
+	UserID      uint      `gorm:"index;not null"`
+	User        User      `gorm:"foreignKey:UserID"`
+	Update      string    `gorm:"type:text;not null"`
+}
+
+// ChallengeValidation represents a buddy's validation of challenge completion
+type ChallengeValidation struct {
+	gorm.Model
+	ParticipantID uint                 `gorm:"index;not null"`
+	Participant   ChallengeParticipant `gorm:"foreignKey:ParticipantID"`
+	ValidatorID   uint                 `gorm:"index;not null"`
+	Validator     User                 `gorm:"foreignKey:ValidatorID"`
+	Approved      bool
+}
+
+// MRREntry represents a monthly recurring revenue log entry
+type MRREntry struct {
+	gorm.Model
+	UserID   uint      `gorm:"index;not null"`
+	User     User      `gorm:"foreignKey:UserID"`
+	GuildID  string    `gorm:"index;not null"`
+	Amount   float64   `gorm:"not null"`
+	Currency string    `gorm:"default:'USD'"`
+	Date     time.Time `gorm:"index"`
+	Note     string
+}
+
+// MRRSettings represents user's MRR display preferences
+type MRRSettings struct {
+	gorm.Model
+	UserID               uint   `gorm:"uniqueIndex:idx_user_guild_mrr;not null"`
+	User                 User   `gorm:"foreignKey:UserID"`
+	GuildID              string `gorm:"uniqueIndex:idx_user_guild_mrr;not null"`
+	IsPublic             bool   `gorm:"default:false"`
+	LastMilestoneReached int    `gorm:"default:0"`
+}
+
+// MRRMilestones defines the revenue milestones to celebrate (in cents to avoid float issues)
+var MRRMilestones = []int{10000, 50000, 100000, 500000, 1000000, 5000000, 10000000} // $100, $500, $1K, $5K, $10K, $50K, $100K
+
+// StreakMilestones defines the days at which streak bonuses are awarded
+var StreakMilestones = map[int]int{
+	7:  10,  // 7 days = +10 points
+	14: 25,  // 14 days = +25 points
+	30: 50,  // 30 days = +50 points
+	60: 100, // 60 days = +100 points
+	90: 200, // 90 days = +200 points
 }
 
 // FocusPeriodDuration is the length of a focus period

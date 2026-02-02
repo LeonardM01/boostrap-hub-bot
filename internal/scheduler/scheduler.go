@@ -64,12 +64,22 @@ func (s *Scheduler) Stop() {
 func (s *Scheduler) runChecks() {
 	log.Println("Running scheduled checks...")
 
+	now := time.Now()
+	hour := now.Hour()
+
 	// Only run main checks once per day (between 9:00-10:00 AM)
-	hour := time.Now().Hour()
 	if hour == 9 {
 		s.checkDailyReminders()
 		s.checkInsufficientTasks()
 		s.checkEndedFocusPeriods()
+		s.checkStandupReminders()
+		s.checkChallengeReminders()
+		s.checkExpiredChallenges()
+	}
+
+	// Monthly wins summary - first of the month at 10 AM
+	if now.Day() == 1 && hour == 10 {
+		s.postMonthlyWinsSummary()
 	}
 }
 
@@ -375,4 +385,213 @@ func (s *Scheduler) SendManualReminder(userDiscordID string, message string) err
 
 	_, err := s.session.ChannelMessageSendEmbed(s.reminderChannel, embed)
 	return err
+}
+
+// checkStandupReminders reminds users who haven't posted a standup today
+func (s *Scheduler) checkStandupReminders() {
+	if s.reminderChannel == "" {
+		log.Println("No reminder channel configured, skipping standup reminders")
+		return
+	}
+
+	guildIDs, err := database.GetAllGuildsWithActivePeriods()
+	if err != nil {
+		log.Printf("Error fetching guilds for standup reminders: %v", err)
+		return
+	}
+
+	for _, guildID := range guildIDs {
+		users, err := database.GetUsersWithoutStandupToday(guildID)
+		if err != nil {
+			log.Printf("Error fetching users without standup for guild %s: %v", guildID, err)
+			continue
+		}
+
+		for _, user := range users {
+			// Get user's streak info
+			streak, _ := database.GetUserStreak(user.ID, guildID)
+
+			// Only remind if they have a streak going (don't spam new users)
+			if streak != nil && streak.CurrentStreak > 0 {
+				s.sendStandupReminder(&user, streak)
+			}
+		}
+	}
+}
+
+// sendStandupReminder sends a standup reminder to a user
+func (s *Scheduler) sendStandupReminder(user *database.User, streak *database.UserStreak) {
+	if s.reminderChannel == "" {
+		return
+	}
+
+	embed := &discordgo.MessageEmbed{
+		Title:       "Standup Reminder",
+		Description: fmt.Sprintf("<@%s>, don't forget to post your daily standup!", user.DiscordID),
+		Color:       0xFFA500, // Orange
+		Fields: []*discordgo.MessageEmbedField{
+			{
+				Name:   "Current Streak",
+				Value:  fmt.Sprintf("%d days - don't break it!", streak.CurrentStreak),
+				Inline: true,
+			},
+		},
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: "Use /standup post to check in",
+		},
+	}
+
+	_, err := s.session.ChannelMessageSendEmbed(s.reminderChannel, embed)
+	if err != nil {
+		log.Printf("Error sending standup reminder: %v", err)
+	} else {
+		log.Printf("Sent standup reminder to user %s", user.DiscordID)
+	}
+}
+
+// checkChallengeReminders sends reminders for active challenges
+func (s *Scheduler) checkChallengeReminders() {
+	guildIDs, err := database.GetAllGuildsWithActivePeriods()
+	if err != nil {
+		log.Printf("Error fetching guilds for challenge reminders: %v", err)
+		return
+	}
+
+	for _, guildID := range guildIDs {
+		challenges, err := database.GetChallengesNeedingReminder(guildID)
+		if err != nil {
+			log.Printf("Error fetching challenges for guild %s: %v", guildID, err)
+			continue
+		}
+
+		for _, challenge := range challenges {
+			daysLeft := int(time.Until(challenge.EndDate).Hours() / 24)
+
+			// Send reminders at key points: 1 day, 3 days, 7 days left
+			if daysLeft == 1 || daysLeft == 3 || daysLeft == 7 {
+				s.sendChallengeReminder(&challenge, daysLeft)
+			}
+		}
+	}
+}
+
+// sendChallengeReminder sends a challenge reminder to participants
+func (s *Scheduler) sendChallengeReminder(challenge *database.Challenge, daysLeft int) {
+	_, participants, err := database.GetChallengeWithParticipants(challenge.ID)
+	if err != nil {
+		return
+	}
+
+	urgency := ""
+	color := 0x5865F2
+	if daysLeft == 1 {
+		urgency = "**FINAL DAY!**"
+		color = 0xFF0000 // Red
+	} else if daysLeft == 3 {
+		urgency = "Only 3 days left!"
+		color = 0xFFA500 // Orange
+	}
+
+	for _, participant := range participants {
+		if participant.Status != database.ChallengeParticipantStatusActive {
+			continue
+		}
+
+		channel, err := s.session.UserChannelCreate(participant.User.DiscordID)
+		if err != nil {
+			continue
+		}
+
+		embed := &discordgo.MessageEmbed{
+			Title:       fmt.Sprintf("Challenge Reminder - #%d", challenge.ID),
+			Description: fmt.Sprintf("%s\n\n**Goal:** %s", urgency, challenge.Title),
+			Color:       color,
+			Fields: []*discordgo.MessageEmbedField{
+				{
+					Name:   "Time Left",
+					Value:  fmt.Sprintf("%d day(s)", daysLeft),
+					Inline: true,
+				},
+				{
+					Name:   "Points Multiplier",
+					Value:  fmt.Sprintf("%.1fx", challenge.PointsMultiplier),
+					Inline: true,
+				},
+			},
+			Footer: &discordgo.MessageEmbedFooter{
+				Text: "Use /challenge progress to log updates or /challenge complete to submit",
+			},
+		}
+
+		s.session.ChannelMessageSendEmbed(channel.ID, embed)
+	}
+}
+
+// checkExpiredChallenges marks expired challenges as failed
+func (s *Scheduler) checkExpiredChallenges() {
+	err := database.CheckAndFailExpiredChallenges()
+	if err != nil {
+		log.Printf("Error checking expired challenges: %v", err)
+	}
+
+	// Also cleanup expired buddy requests
+	database.CleanupExpiredRequests()
+}
+
+// postMonthlyWinsSummary posts a summary of last month's wins
+func (s *Scheduler) postMonthlyWinsSummary() {
+	guildIDs, err := database.GetAllGuildsWithActivePeriods()
+	if err != nil {
+		log.Printf("Error fetching guilds for monthly wins: %v", err)
+		return
+	}
+
+	for _, guildID := range guildIDs {
+		winsChannel, err := database.GetWinsChannel(guildID)
+		if err != nil || winsChannel == "" {
+			continue
+		}
+
+		wins, err := database.GetMonthlyTopWins(guildID, 10)
+		if err != nil || len(wins) == 0 {
+			continue
+		}
+
+		now := time.Now()
+		lastMonth := now.AddDate(0, -1, 0)
+		monthName := lastMonth.Format("January 2006")
+
+		description := fmt.Sprintf("Here are the highlights from **%s**:\n\n", monthName)
+		for i, win := range wins {
+			if i >= 5 {
+				description += fmt.Sprintf("\n*...and %d more wins!*", len(wins)-5)
+				break
+			}
+			description += fmt.Sprintf("**%s:** %s\n", win.User.Username, truncateString(win.Message, 80))
+		}
+
+		embed := &discordgo.MessageEmbed{
+			Title:       fmt.Sprintf("Monthly Wins Recap - %s", monthName),
+			Description: description,
+			Color:       0xFFD700, // Gold
+			Footer: &discordgo.MessageEmbedFooter{
+				Text: "Share your wins with /win share",
+			},
+		}
+
+		_, err = s.session.ChannelMessageSendEmbed(winsChannel, embed)
+		if err != nil {
+			log.Printf("Error posting monthly wins summary: %v", err)
+		} else {
+			log.Printf("Posted monthly wins summary to channel %s", winsChannel)
+		}
+	}
+}
+
+// truncateString truncates a string to maxLen characters
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
 }

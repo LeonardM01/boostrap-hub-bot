@@ -33,6 +33,22 @@ func Initialize(dbPath string) error {
 		&PrivateResourceRole{},
 		&GuildConfig{},
 		&SprintPoints{},
+		// Phase 1: Daily Standups + Streaks
+		&Standup{},
+		&UserStreak{},
+		// Phase 2: Win Sharing
+		&Win{},
+		// Phase 3: Accountability Buddies
+		&BuddyRequest{},
+		&BuddyPair{},
+		// Phase 4: Challenge System
+		&Challenge{},
+		&ChallengeParticipant{},
+		&ChallengeProgress{},
+		&ChallengeValidation{},
+		// Phase 5: MRR Tracking
+		&MRREntry{},
+		&MRRSettings{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)

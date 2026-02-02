@@ -36,6 +36,38 @@ func configCommand() *Command {
 						},
 					},
 				},
+				{
+					Name:        "wins-channel",
+					Description: "Set the channel for win celebrations",
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Name:        "channel",
+							Description: "The channel to post wins in",
+							Type:        discordgo.ApplicationCommandOptionChannel,
+							Required:    true,
+							ChannelTypes: []discordgo.ChannelType{
+								discordgo.ChannelTypeGuildText,
+							},
+						},
+					},
+				},
+				{
+					Name:        "mrr-channel",
+					Description: "Set the channel for MRR milestone announcements",
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Name:        "channel",
+							Description: "The channel to post MRR milestones in",
+							Type:        discordgo.ApplicationCommandOptionChannel,
+							Required:    true,
+							ChannelTypes: []discordgo.ChannelType{
+								discordgo.ChannelTypeGuildText,
+							},
+						},
+					},
+				},
 			},
 		},
 		Handler: handleConfigCommand,
@@ -110,6 +142,12 @@ func handleConfigCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	case "leaderboard-channel":
 		channelID := options[0].Options[0].ChannelValue(s).ID
 		handleConfigLeaderboardChannel(s, i, guildID, channelID)
+	case "wins-channel":
+		channelID := options[0].Options[0].ChannelValue(s).ID
+		handleConfigWinsChannel(s, i, guildID, channelID)
+	case "mrr-channel":
+		channelID := options[0].Options[0].ChannelValue(s).ID
+		handleConfigMRRChannel(s, i, guildID, channelID)
 	default:
 		respondWithError(s, i, "Unknown subcommand")
 	}
@@ -126,6 +164,46 @@ func handleConfigLeaderboardChannel(s *discordgo.Session, i *discordgo.Interacti
 	embed := &discordgo.MessageEmbed{
 		Title:       "Configuration Updated",
 		Description: fmt.Sprintf("Leaderboard channel set to <#%s>\n\nBi-weekly leaderboards will now be automatically posted to this channel when Focus Periods end.", channelID),
+		Color:       0x00FF00, // Green
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: "Bootstrap Hub Bot Configuration",
+		},
+	}
+
+	respondWithEmbed(s, i, embed)
+}
+
+func handleConfigWinsChannel(s *discordgo.Session, i *discordgo.InteractionCreate, guildID, channelID string) {
+	err := database.UpdateWinsChannel(guildID, channelID)
+	if err != nil {
+		log.Printf("Error updating wins channel: %v", err)
+		respondWithError(s, i, "Failed to update wins channel.")
+		return
+	}
+
+	embed := &discordgo.MessageEmbed{
+		Title:       "Configuration Updated",
+		Description: fmt.Sprintf("Wins channel set to <#%s>\n\nWin celebrations will now be automatically posted to this channel when users share wins.", channelID),
+		Color:       0x00FF00, // Green
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: "Bootstrap Hub Bot Configuration",
+		},
+	}
+
+	respondWithEmbed(s, i, embed)
+}
+
+func handleConfigMRRChannel(s *discordgo.Session, i *discordgo.InteractionCreate, guildID, channelID string) {
+	err := database.UpdateMRRChannel(guildID, channelID)
+	if err != nil {
+		log.Printf("Error updating MRR channel: %v", err)
+		respondWithError(s, i, "Failed to update MRR channel.")
+		return
+	}
+
+	embed := &discordgo.MessageEmbed{
+		Title:       "Configuration Updated",
+		Description: fmt.Sprintf("MRR channel set to <#%s>\n\nMRR milestone celebrations will now be automatically posted to this channel.", channelID),
 		Color:       0x00FF00, // Green
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: "Bootstrap Hub Bot Configuration",

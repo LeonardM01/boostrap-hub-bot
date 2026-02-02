@@ -24,6 +24,12 @@ func GetAllCommands(openaiClient *openai.Client) []*Command {
 		resourceCommand(),
 		leaderboardCommand(),
 		configCommand(),
+		// New features
+		standupCommand(),
+		winCommand(),
+		buddyCommand(),
+		challengeCommand(),
+		mrrCommand(),
 	}
 }
 
@@ -85,27 +91,42 @@ func helpCommand() *Command {
 				Fields: []*discordgo.MessageEmbedField{
 					{
 						Name:   "🎯 Focus Period Commands",
-						Value:  "`/focus start` - Start a new 2-week Focus Period\n`/focus add <goal>` - Add a goal to your period (AI calculates points 1-10)\n`/focus complete <#>` - Mark a goal as done and earn points\n`/focus list` - View your goals\n`/focus status` - See your progress",
+						Value:  "`/focus start` - Start a new 2-week Focus Period\n`/focus add <goal>` - Add a goal (AI calculates points)\n`/focus complete <#>` - Mark a goal as done\n`/focus list` - View your goals\n`/focus status` - See your progress",
+						Inline: false,
+					},
+					{
+						Name:   "📝 Daily Standup Commands",
+						Value:  "`/standup post` - Post your daily standup\n`/standup streak` - View your streak stats\n`/standup leaderboard` - View streak rankings\n`/standup history` - View recent standups",
+						Inline: false,
+					},
+					{
+						Name:   "🎉 Win Sharing Commands",
+						Value:  "`/win share <message>` - Share a win\n`/win recent` - View recent community wins\n`/win stats` - View win statistics",
+						Inline: false,
+					},
+					{
+						Name:   "🤝 Accountability Buddy Commands",
+						Value:  "`/buddy request @user` - Send buddy request\n`/buddy accept @user` - Accept request\n`/buddy status` - View buddy progress\n`/buddy list` - List your buddies\n`/buddy remove @user` - Remove a buddy",
+						Inline: false,
+					},
+					{
+						Name:   "⚔️ Challenge Commands",
+						Value:  "`/challenge create` - Create a challenge with buddies\n`/challenge progress` - Log progress\n`/challenge complete` - Submit with proof\n`/challenge validate` - Validate buddy completion\n`/challenge list` - View your challenges",
+						Inline: false,
+					},
+					{
+						Name:   "💰 MRR Tracking Commands",
+						Value:  "`/mrr update <amount>` - Log your MRR\n`/mrr public` / `/mrr private` - Toggle visibility\n`/mrr history` - View MRR trend\n`/mrr leaderboard` - View public rankings\n`/mrr stats` - View your statistics",
 						Inline: false,
 					},
 					{
 						Name:   "🏆 Leaderboard Commands",
-						Value:  "`/leaderboard alltime` - View all-time rankings\n`/leaderboard sprint` - View current sprint rankings\n\nEarn points by completing tasks. Harder tasks = more points!",
+						Value:  "`/leaderboard alltime` - All-time rankings\n`/leaderboard sprint` - Current sprint rankings",
 						Inline: false,
 					},
 					{
 						Name:   "⚙️ Admin Commands",
-						Value:  "`/config leaderboard-channel <channel>` - Set channel for bi-weekly leaderboard posts",
-						Inline: false,
-					},
-					{
-						Name:   "📋 General Commands",
-						Value:  "`/ping` - Check if the bot is responsive\n`/help` - Show this help message",
-						Inline: false,
-					},
-					{
-						Name:   "🚀 About Focus Periods",
-						Value:  "Set goals for 2-week sprints and track your progress. Stay accountable with reminders on days 3, 7, 10, 12, and 13! Compete on the leaderboard by completing tasks and earning points.",
+						Value:  "`/config leaderboard-channel` - Set leaderboard channel\n`/config wins-channel` - Set wins channel\n`/config mrr-channel` - Set MRR milestone channel",
 						Inline: false,
 					},
 				},
