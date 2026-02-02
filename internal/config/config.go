@@ -19,6 +19,8 @@ type Config struct {
 	DatabasePath string
 	// ReminderChannelID is the Discord channel ID where reminders will be sent
 	ReminderChannelID string
+	// OpenAIAPIKey is the OpenAI API key for point calculation
+	OpenAIAPIKey string
 }
 
 // Load loads the configuration from environment variables
@@ -38,6 +40,7 @@ func Load() (*Config, error) {
 		GuildID:           os.Getenv("DISCORD_GUILD_ID"),
 		DatabasePath:      dbPath,
 		ReminderChannelID: os.Getenv("DISCORD_REMINDER_CHANNEL_ID"),
+		OpenAIAPIKey:      os.Getenv("OPENAI_API_KEY"),
 	}
 
 	if config.BotToken == "" {

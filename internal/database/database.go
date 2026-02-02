@@ -31,6 +31,8 @@ func Initialize(dbPath string) error {
 		&PublicResource{},
 		&PrivateResource{},
 		&PrivateResourceRole{},
+		&GuildConfig{},
+		&SprintPoints{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
@@ -117,7 +119,7 @@ func CreateFocusPeriod(userID uint, guildID string) (*FocusPeriod, error) {
 }
 
 // AddTask adds a task to a focus period
-func AddTask(focusPeriodID uint, title, description string) (*Task, error) {
+func AddTask(focusPeriodID uint, title, description string, points int) (*Task, error) {
 	// Get the next position
 	var maxPosition int
 	DB.Model(&Task{}).Where("focus_period_id = ?", focusPeriodID).Select("COALESCE(MAX(position), 0)").Scan(&maxPosition)
@@ -128,6 +130,7 @@ func AddTask(focusPeriodID uint, title, description string) (*Task, error) {
 		Description:   description,
 		Completed:     false,
 		Position:      maxPosition + 1,
+		Points:        points,
 	}
 
 	if err := DB.Create(&task).Error; err != nil {

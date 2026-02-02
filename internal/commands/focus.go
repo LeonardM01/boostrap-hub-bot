@@ -6,11 +6,12 @@ import (
 	"strings"
 
 	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/database"
+	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/openai"
 	"github.com/bwmarrin/discordgo"
 )
 
 // focusCommand creates the /focus command group
-func focusCommand() *Command {
+func focusCommand(openaiClient *openai.Client) *Command {
 	return &Command{
 		Definition: &discordgo.ApplicationCommand{
 			Name:        "focus",
@@ -61,7 +62,9 @@ func focusCommand() *Command {
 				},
 			},
 		},
-		Handler: handleFocusCommand,
+		Handler: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			handleFocusCommand(s, i, openaiClient)
+		},
 	}
 }
 
@@ -69,7 +72,7 @@ func floatPtr(f float64) *float64 {
 	return &f
 }
 
-func handleFocusCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func handleFocusCommand(s *discordgo.Session, i *discordgo.InteractionCreate, openaiClient *openai.Client) {
 	options := i.ApplicationCommandData().Options
 	if len(options) == 0 {
 		respondWithError(s, i, "Invalid command usage")
@@ -103,7 +106,7 @@ func handleFocusCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		handleFocusStart(s, i, user, guildID)
 	case "add":
 		goalText := options[0].Options[0].StringValue()
-		handleFocusAdd(s, i, user, goalText)
+		handleFocusAdd(s, i, user, goalText, openaiClient)
 	case "complete":
 		goalNum := int(options[0].Options[0].IntValue())
 		handleFocusComplete(s, i, user, goalNum)
@@ -171,7 +174,7 @@ func handleFocusStart(s *discordgo.Session, i *discordgo.InteractionCreate, user
 	respondWithEmbed(s, i, embed)
 }
 
-func handleFocusAdd(s *discordgo.Session, i *discordgo.InteractionCreate, user *database.User, goal string) {
+func handleFocusAdd(s *discordgo.Session, i *discordgo.InteractionCreate, user *database.User, goal string, openaiClient *openai.Client) {
 	// Get current focus period
 	period, err := database.GetCurrentFocusPeriod(user.ID)
 	if err != nil {
@@ -190,8 +193,19 @@ func handleFocusAdd(s *discordgo.Session, i *discordgo.InteractionCreate, user *
 		return
 	}
 
-	// Add the task
-	task, err := database.AddTask(period.ID, goal, "")
+	// Calculate points using OpenAI
+	points := 5 // Default
+	if openaiClient != nil {
+		calculatedPoints, err := openaiClient.CalculatePoints(goal, "")
+		if err != nil {
+			log.Printf("Error calculating points: %v, using default", err)
+		} else {
+			points = calculatedPoints
+		}
+	}
+
+	// Add the task with calculated points
+	task, err := database.AddTask(period.ID, goal, "", points)
 	if err != nil {
 		log.Printf("Error adding task: %v", err)
 		respondWithError(s, i, "Failed to add your goal.")
@@ -204,7 +218,7 @@ func handleFocusAdd(s *discordgo.Session, i *discordgo.InteractionCreate, user *
 
 	embed := &discordgo.MessageEmbed{
 		Title:       "Goal Added!",
-		Description: fmt.Sprintf("**#%d:** %s", task.Position, goal),
+		Description: fmt.Sprintf("**#%d:** %s\n**Points:** %d/10", task.Position, goal, points),
 		Color:       0x00FF00, // Green
 		Fields: []*discordgo.MessageEmbedField{
 			{
@@ -257,6 +271,16 @@ func handleFocusComplete(s *discordgo.Session, i *discordgo.InteractionCreate, u
 		return
 	}
 
+	// Award points to user
+	guildID := i.GuildID
+	if guildID == "" {
+		guildID = "DM"
+	}
+	err = database.AddPointsToUser(user.ID, period.ID, task.Points, guildID, period.StartDate, period.EndDate)
+	if err != nil {
+		log.Printf("Error adding points to user: %v", err)
+	}
+
 	// Reload tasks to get counts
 	tasks, _ := database.GetTasksByFocusPeriod(period.ID)
 	completedCount := 0
@@ -268,7 +292,7 @@ func handleFocusComplete(s *discordgo.Session, i *discordgo.InteractionCreate, u
 
 	embed := &discordgo.MessageEmbed{
 		Title:       "Goal Completed!",
-		Description: fmt.Sprintf("**#%d:** ~~%s~~", task.Position, task.Title),
+		Description: fmt.Sprintf("**#%d:** ~~%s~~\n\n+%d points earned!", task.Position, task.Title, task.Points),
 		Color:       0x00FF00, // Green
 		Fields: []*discordgo.MessageEmbedField{
 			{

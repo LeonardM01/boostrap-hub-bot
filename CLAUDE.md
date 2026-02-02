@@ -6,6 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Bootstrap Hub Bot is a Discord bot built with Go and the discordgo library, designed for solo founders and entrepreneurs. The bot helps users track their business goals using 2-week "Focus Periods" (similar to agile sprints) with automated reminders and progress tracking.
 
+## Available Resources
+
+### API Documentation
+When working with the discordgo library, use the **context7 MCP server** to retrieve up-to-date documentation and code examples. This provides accurate API references for:
+- Discord API methods and types
+- discordgo library usage patterns
+- Best practices and examples
+
+To access discordgo documentation, ask Claude to query the context7 server for specific API information.
+
 ## Development Commands
 
 ### Build and Run

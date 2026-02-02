@@ -9,20 +9,22 @@ import (
 // User represents a Discord user in the system
 type User struct {
 	gorm.Model
-	DiscordID string `gorm:"uniqueIndex;not null"` // Discord user ID
-	GuildID   string `gorm:"index;not null"`       // Discord guild/server ID
-	Username  string // Cached username for display
+	DiscordID   string `gorm:"uniqueIndex;not null"` // Discord user ID
+	GuildID     string `gorm:"index;not null"`       // Discord guild/server ID
+	Username    string // Cached username for display
+	TotalPoints int    `gorm:"default:0"` // Lifetime points earned
 }
 
 // FocusPeriod represents a 2-week goal period (like a sprint)
 type FocusPeriod struct {
 	gorm.Model
-	UserID    uint      `gorm:"index;not null"`
-	User      User      `gorm:"foreignKey:UserID"`
-	GuildID   string    `gorm:"index;not null"` // Guild where this period was created
-	StartDate time.Time `gorm:"not null"`
-	EndDate   time.Time `gorm:"not null"`
-	Tasks     []Task    `gorm:"foreignKey:FocusPeriodID"`
+	UserID            uint      `gorm:"index;not null"`
+	User              User      `gorm:"foreignKey:UserID"`
+	GuildID           string    `gorm:"index;not null"` // Guild where this period was created
+	StartDate         time.Time `gorm:"not null"`
+	EndDate           time.Time `gorm:"not null"`
+	Tasks             []Task    `gorm:"foreignKey:FocusPeriodID"`
+	LeaderboardPosted bool      `gorm:"default:false"` // Tracks if leaderboard was posted for this period
 }
 
 // Task represents a goal/task within a focus period
@@ -35,6 +37,7 @@ type Task struct {
 	Completed     bool
 	CompletedAt   *time.Time
 	Position      int // Order within the focus period (1, 2, 3, etc.)
+	Points        int `gorm:"default:0"` // Points earned when task is completed
 }
 
 // TaskStatus represents the status of a task
@@ -108,6 +111,26 @@ const (
 	ResourceStatusApproved ResourceStatus = "approved"
 	ResourceStatusRejected ResourceStatus = "rejected"
 )
+
+// GuildConfig stores guild-level configuration
+type GuildConfig struct {
+	gorm.Model
+	GuildID            string `gorm:"uniqueIndex;not null"` // Discord guild/server ID
+	LeaderboardChannel string // Channel ID for automated leaderboard posts
+}
+
+// SprintPoints tracks points earned in a specific focus period
+type SprintPoints struct {
+	gorm.Model
+	FocusPeriodID uint        `gorm:"index;not null"`
+	FocusPeriod   FocusPeriod `gorm:"foreignKey:FocusPeriodID"`
+	UserID        uint        `gorm:"index;not null"`
+	User          User        `gorm:"foreignKey:UserID"`
+	GuildID       string      `gorm:"index;not null"`
+	Points        int         `gorm:"default:0"`
+	StartDate     time.Time   `gorm:"not null;index"` // Cached from FocusPeriod for easier querying
+	EndDate       time.Time   `gorm:"not null;index"`
+}
 
 // FocusPeriodDuration is the length of a focus period
 const FocusPeriodDuration = 14 * 24 * time.Hour // 2 weeks

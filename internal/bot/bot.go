@@ -7,6 +7,7 @@ import (
 	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/commands"
 	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/config"
 	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/database"
+	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/openai"
 	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/scheduler"
 	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/voter"
 	"github.com/bwmarrin/discordgo"
@@ -14,10 +15,11 @@ import (
 
 // Bot represents the Discord bot instance
 type Bot struct {
-	Session   *discordgo.Session
-	Config    *config.Config
-	Scheduler *scheduler.Scheduler
-	Voter     *voter.Voter
+	Session      *discordgo.Session
+	Config       *config.Config
+	Scheduler    *scheduler.Scheduler
+	Voter        *voter.Voter
+	OpenAIClient *openai.Client
 }
 
 // New creates a new Bot instance
@@ -27,9 +29,13 @@ func New(cfg *config.Config) (*Bot, error) {
 		return nil, fmt.Errorf("failed to create Discord session: %w", err)
 	}
 
+	// Initialize OpenAI client (may be nil if no API key)
+	openaiClient := openai.New(cfg.OpenAIAPIKey)
+
 	bot := &Bot{
-		Session: session,
-		Config:  cfg,
+		Session:      session,
+		Config:       cfg,
+		OpenAIClient: openaiClient,
 	}
 
 	// Register the interaction handler
@@ -146,7 +152,7 @@ func (b *Bot) handleInteraction(s *discordgo.Session, i *discordgo.InteractionCr
 		return
 	}
 
-	handlers := commands.GetHandlers()
+	handlers := commands.GetHandlers(b.OpenAIClient)
 	cmdName := i.ApplicationCommandData().Name
 
 	if handler, ok := handlers[cmdName]; ok {

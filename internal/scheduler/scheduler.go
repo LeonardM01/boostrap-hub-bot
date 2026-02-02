@@ -69,6 +69,7 @@ func (s *Scheduler) runChecks() {
 	if hour == 9 {
 		s.checkDailyReminders()
 		s.checkInsufficientTasks()
+		s.checkEndedFocusPeriods()
 	}
 }
 
@@ -255,6 +256,108 @@ func (s *Scheduler) sendInsufficientTasksReminder(period *database.FocusPeriod) 
 		log.Printf("Error sending insufficient tasks reminder: %v", err)
 	} else {
 		log.Printf("Sent insufficient tasks reminder to user %s", period.User.DiscordID)
+	}
+}
+
+// checkEndedFocusPeriods checks for ended focus periods and posts leaderboards
+func (s *Scheduler) checkEndedFocusPeriods() {
+	log.Println("Checking for ended focus periods...")
+
+	guildIDs, err := database.GetAllGuildsWithActivePeriods()
+	if err != nil {
+		log.Printf("Error fetching guilds: %v", err)
+		return
+	}
+
+	for _, guildID := range guildIDs {
+		s.checkEndedPeriodsForGuild(guildID)
+	}
+}
+
+// checkEndedPeriodsForGuild checks and posts leaderboards for a specific guild
+func (s *Scheduler) checkEndedPeriodsForGuild(guildID string) {
+	// Get leaderboard channel for this guild
+	leaderboardChannel, err := database.GetLeaderboardChannel(guildID)
+	if err != nil {
+		log.Printf("Error getting leaderboard channel for guild %s: %v", guildID, err)
+		return
+	}
+
+	if leaderboardChannel == "" {
+		log.Printf("No leaderboard channel configured for guild %s, skipping", guildID)
+		return
+	}
+
+	// Get periods that ended but haven't had leaderboard posted
+	periods, err := database.GetEndedPeriodsNeedingLeaderboard(guildID)
+	if err != nil {
+		log.Printf("Error fetching ended periods for guild %s: %v", guildID, err)
+		return
+	}
+
+	if len(periods) == 0 {
+		return
+	}
+
+	log.Printf("Found %d ended periods needing leaderboard for guild %s", len(periods), guildID)
+
+	// Post sprint leaderboard for this period
+	s.postSprintLeaderboard(guildID, leaderboardChannel)
+
+	// Mark all periods as posted
+	for _, period := range periods {
+		if err := database.MarkLeaderboardPosted(period.ID); err != nil {
+			log.Printf("Error marking leaderboard posted for period %d: %v", period.ID, err)
+		}
+	}
+}
+
+// postSprintLeaderboard posts the sprint leaderboard to a channel
+func (s *Scheduler) postSprintLeaderboard(guildID, channelID string) {
+	entries, err := database.GetSprintLeaderboard(guildID, 10)
+	if err != nil {
+		log.Printf("Error fetching sprint leaderboard: %v", err)
+		return
+	}
+
+	if len(entries) == 0 {
+		log.Printf("No entries for sprint leaderboard in guild %s", guildID)
+		return
+	}
+
+	// Build leaderboard message
+	description := "**Focus Period Complete!**\n\nHere are the top performers from the recently completed sprint:\n\n"
+	for _, entry := range entries {
+		medal := ""
+		switch entry.Rank {
+		case 1:
+			medal = "🥇"
+		case 2:
+			medal = "🥈"
+		case 3:
+			medal = "🥉"
+		default:
+			medal = fmt.Sprintf("`#%d`", entry.Rank)
+		}
+
+		description += fmt.Sprintf("%s **%s** - %d points (%d tasks)\n",
+			medal, entry.Username, entry.Points, entry.TasksCount)
+	}
+
+	embed := &discordgo.MessageEmbed{
+		Title:       "🏆 Sprint Leaderboard - Focus Period Completed!",
+		Description: description,
+		Color:       0xFFD700, // Gold
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: "Congratulations to all participants! Start a new Focus Period to continue your momentum.",
+		},
+	}
+
+	_, err = s.session.ChannelMessageSendEmbed(channelID, embed)
+	if err != nil {
+		log.Printf("Error posting sprint leaderboard to channel %s: %v", channelID, err)
+	} else {
+		log.Printf("Posted sprint leaderboard to channel %s", channelID)
 	}
 }
 

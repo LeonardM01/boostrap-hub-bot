@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/bootstrap-hub/bootstrap-hub-bot/internal/openai"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -15,18 +16,20 @@ type Command struct {
 }
 
 // GetAllCommands returns all available bot commands
-func GetAllCommands() []*Command {
+func GetAllCommands(openaiClient *openai.Client) []*Command {
 	return []*Command{
 		pingCommand(),
 		helpCommand(),
-		focusCommand(),
+		focusCommand(openaiClient),
 		resourceCommand(),
+		leaderboardCommand(),
+		configCommand(),
 	}
 }
 
 // GetCommandDefinitions returns just the command definitions for registration
 func GetCommandDefinitions() []*discordgo.ApplicationCommand {
-	commands := GetAllCommands()
+	commands := GetAllCommands(nil)
 	definitions := make([]*discordgo.ApplicationCommand, len(commands))
 	for i, cmd := range commands {
 		definitions[i] = cmd.Definition
@@ -35,8 +38,8 @@ func GetCommandDefinitions() []*discordgo.ApplicationCommand {
 }
 
 // GetHandlers returns a map of command names to their handlers
-func GetHandlers() map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	commands := GetAllCommands()
+func GetHandlers(openaiClient *openai.Client) map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	commands := GetAllCommands(openaiClient)
 	handlers := make(map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate))
 	for _, cmd := range commands {
 		handlers[cmd.Definition.Name] = cmd.Handler
@@ -82,7 +85,17 @@ func helpCommand() *Command {
 				Fields: []*discordgo.MessageEmbedField{
 					{
 						Name:   "🎯 Focus Period Commands",
-						Value:  "`/focus start` - Start a new 2-week Focus Period\n`/focus add <goal>` - Add a goal to your period\n`/focus complete <#>` - Mark a goal as done\n`/focus list` - View your goals\n`/focus status` - See your progress",
+						Value:  "`/focus start` - Start a new 2-week Focus Period\n`/focus add <goal>` - Add a goal to your period (AI calculates points 1-10)\n`/focus complete <#>` - Mark a goal as done and earn points\n`/focus list` - View your goals\n`/focus status` - See your progress",
+						Inline: false,
+					},
+					{
+						Name:   "🏆 Leaderboard Commands",
+						Value:  "`/leaderboard alltime` - View all-time rankings\n`/leaderboard sprint` - View current sprint rankings\n\nEarn points by completing tasks. Harder tasks = more points!",
+						Inline: false,
+					},
+					{
+						Name:   "⚙️ Admin Commands",
+						Value:  "`/config leaderboard-channel <channel>` - Set channel for bi-weekly leaderboard posts",
 						Inline: false,
 					},
 					{
@@ -92,7 +105,7 @@ func helpCommand() *Command {
 					},
 					{
 						Name:   "🚀 About Focus Periods",
-						Value:  "Set goals for 2-week sprints and track your progress. Stay accountable with reminders on days 3, 7, 10, 12, and 13!",
+						Value:  "Set goals for 2-week sprints and track your progress. Stay accountable with reminders on days 3, 7, 10, 12, and 13! Compete on the leaderboard by completing tasks and earning points.",
 						Inline: false,
 					},
 				},
