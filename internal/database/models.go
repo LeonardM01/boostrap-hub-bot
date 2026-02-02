@@ -293,6 +293,7 @@ type MRRSettings struct {
 	GuildID              string `gorm:"uniqueIndex:idx_user_guild_mrr;not null"`
 	IsPublic             bool   `gorm:"default:false"`
 	LastMilestoneReached int    `gorm:"default:0"`
+	ProjectChannelID     string // User's project channel for MRR reminders
 }
 
 // MRRMilestones defines the revenue milestones to celebrate (in cents to avoid float issues)

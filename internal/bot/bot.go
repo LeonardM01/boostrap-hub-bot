@@ -146,19 +146,22 @@ func (b *Bot) handleReady(s *discordgo.Session, r *discordgo.Ready) {
 	}
 }
 
-// handleInteraction handles all incoming interactions (slash commands)
+// handleInteraction handles all incoming interactions (slash commands and components)
 func (b *Bot) handleInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	if i.Type != discordgo.InteractionApplicationCommand {
-		return
-	}
+	switch i.Type {
+	case discordgo.InteractionApplicationCommand:
+		handlers := commands.GetHandlers(b.OpenAIClient)
+		cmdName := i.ApplicationCommandData().Name
 
-	handlers := commands.GetHandlers(b.OpenAIClient)
-	cmdName := i.ApplicationCommandData().Name
+		if handler, ok := handlers[cmdName]; ok {
+			handler(s, i)
+		} else {
+			log.Printf("Unknown command: %s", cmdName)
+		}
 
-	if handler, ok := handlers[cmdName]; ok {
-		handler(s, i)
-	} else {
-		log.Printf("Unknown command: %s", cmdName)
+	case discordgo.InteractionMessageComponent:
+		// Handle button/select menu interactions
+		commands.HandleHelpComponent(s, i)
 	}
 }
 

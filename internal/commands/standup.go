@@ -255,7 +255,7 @@ func handleStandupStreak(s *discordgo.Session, i *discordgo.InteractionCreate, u
 		Inline: false,
 	})
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func handleStandupLeaderboard(s *discordgo.Session, i *discordgo.InteractionCreate, guildID string) {
@@ -321,7 +321,7 @@ func handleStandupHistory(s *discordgo.Session, i *discordgo.InteractionCreate, 
 			Description: fmt.Sprintf("No standups in the last %d days.\n\nStart your streak with `/standup post`!", days),
 			Color:       0xFFA500, // Orange
 		}
-		respondWithEmbed(s, i, embed)
+		respondWithEmbedEphemeral(s, i, embed, true)
 		return
 	}
 
@@ -345,7 +345,7 @@ func handleStandupHistory(s *discordgo.Session, i *discordgo.InteractionCreate, 
 		},
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 // getStreakEmoji returns an appropriate emoji based on streak length

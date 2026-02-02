@@ -84,6 +84,22 @@ func mrrCommand() *Command {
 					Description: "View your MRR statistics",
 					Type:        discordgo.ApplicationCommandOptionSubCommand,
 				},
+				{
+					Name:        "set-channel",
+					Description: "Link your MRR to a project channel for reminders",
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Name:        "channel",
+							Description: "Your project channel for MRR update reminders",
+							Type:        discordgo.ApplicationCommandOptionChannel,
+							Required:    true,
+							ChannelTypes: []discordgo.ChannelType{
+								discordgo.ChannelTypeGuildText,
+							},
+						},
+					},
+				},
 			},
 		},
 		Handler: handleMRRCommand,
@@ -136,6 +152,8 @@ func handleMRRCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		handleMRRLeaderboard(s, i, guildID)
 	case "stats":
 		handleMRRStats(s, i, user, guildID)
+	case "set-channel":
+		handleMRRSetChannel(s, i, user, guildID, options[0].Options)
 	default:
 		respondWithError(s, i, "Unknown subcommand")
 	}
@@ -209,7 +227,7 @@ func handleMRRUpdate(s *discordgo.Session, i *discordgo.InteractionCreate, user 
 		Text: fmt.Sprintf("Logged at %s | Use /mrr public to share on leaderboard", entry.Date.Format("Jan 2, 2006")),
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 
 	// Handle milestone celebration
 	if milestone > 0 {
@@ -265,7 +283,7 @@ func handleMRRPublic(s *discordgo.Session, i *discordgo.InteractionCreate, user 
 		},
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func handleMRRPrivate(s *discordgo.Session, i *discordgo.InteractionCreate, user *database.User, guildID string) {
@@ -285,7 +303,7 @@ func handleMRRPrivate(s *discordgo.Session, i *discordgo.InteractionCreate, user
 		},
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func handleMRRHistory(s *discordgo.Session, i *discordgo.InteractionCreate, user *database.User, guildID string, months int) {
@@ -302,7 +320,7 @@ func handleMRRHistory(s *discordgo.Session, i *discordgo.InteractionCreate, user
 			Description: "No MRR entries found.\n\nStart tracking with `/mrr update`!",
 			Color:       0xFFA500, // Orange
 		}
-		respondWithEmbed(s, i, embed)
+		respondWithEmbedEphemeral(s, i, embed, true)
 		return
 	}
 
@@ -345,7 +363,7 @@ func handleMRRHistory(s *discordgo.Session, i *discordgo.InteractionCreate, user
 		},
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func handleMRRLeaderboard(s *discordgo.Session, i *discordgo.InteractionCreate, guildID string) {
@@ -411,7 +429,7 @@ func handleMRRStats(s *discordgo.Session, i *discordgo.InteractionCreate, user *
 			Description: "No MRR data yet.\n\nStart tracking with `/mrr update`!",
 			Color:       0xFFA500, // Orange
 		}
-		respondWithEmbed(s, i, embed)
+		respondWithEmbedEphemeral(s, i, embed, true)
 		return
 	}
 
@@ -470,7 +488,7 @@ func handleMRRStats(s *discordgo.Session, i *discordgo.InteractionCreate, user *
 		}
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func getCurrencySymbol(currency string) string {
@@ -495,4 +513,40 @@ func getVisibilityStatus(isPublic bool) string {
 		return "🌐 Public"
 	}
 	return "🔒 Private"
+}
+
+func handleMRRSetChannel(s *discordgo.Session, i *discordgo.InteractionCreate, user *database.User, guildID string, options []*discordgo.ApplicationCommandInteractionDataOption) {
+	var channelID string
+
+	for _, opt := range options {
+		if opt.Name == "channel" {
+			channel := opt.ChannelValue(s)
+			if channel != nil {
+				channelID = channel.ID
+			}
+		}
+	}
+
+	if channelID == "" {
+		respondWithError(s, i, "Please provide a valid channel.")
+		return
+	}
+
+	err := database.UpdateMRRProjectChannel(user.ID, guildID, channelID)
+	if err != nil {
+		log.Printf("Error updating MRR project channel: %v", err)
+		respondWithError(s, i, "Failed to set project channel.")
+		return
+	}
+
+	embed := &discordgo.MessageEmbed{
+		Title:       "Project Channel Set",
+		Description: fmt.Sprintf("Your MRR reminders will be sent to <#%s>.\n\nYou'll receive a reminder 7 days before each month ends to update your MRR.", channelID),
+		Color:       0x00FF00, // Green
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: "Use /mrr update to log your MRR anytime",
+		},
+	}
+
+	respondWithEmbedEphemeral(s, i, embed, true)
 }

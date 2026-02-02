@@ -121,7 +121,7 @@ func handleConfigCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			Description: "You need one of these roles to use this command: Admin, Moderator, or Mod",
 			Color:       0xFF0000, // Red
 		}
-		respondWithEmbed(s, i, embed)
+		respondWithEmbedEphemeral(s, i, embed, true)
 		return
 	}
 
@@ -170,7 +170,7 @@ func handleConfigLeaderboardChannel(s *discordgo.Session, i *discordgo.Interacti
 		},
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func handleConfigWinsChannel(s *discordgo.Session, i *discordgo.InteractionCreate, guildID, channelID string) {
@@ -190,7 +190,7 @@ func handleConfigWinsChannel(s *discordgo.Session, i *discordgo.InteractionCreat
 		},
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func handleConfigMRRChannel(s *discordgo.Session, i *discordgo.InteractionCreate, guildID, channelID string) {
@@ -210,5 +210,5 @@ func handleConfigMRRChannel(s *discordgo.Session, i *discordgo.InteractionCreate
 		},
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }

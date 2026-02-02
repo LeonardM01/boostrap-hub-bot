@@ -193,7 +193,7 @@ func handleBuddyRequest(s *discordgo.Session, i *discordgo.InteractionCreate, us
 		},
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 
 	// Try to DM the target user
 	channel, err := s.UserChannelCreate(targetUser.ID)
@@ -242,7 +242,7 @@ func handleBuddyAccept(s *discordgo.Session, i *discordgo.InteractionCreate, use
 		},
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 
 	// Try to DM the requester
 	channel, err := s.UserChannelCreate(targetUser.ID)
@@ -277,7 +277,7 @@ func handleBuddyDecline(s *discordgo.Session, i *discordgo.InteractionCreate, us
 		Color:       0xFFA500, // Orange
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func handleBuddyStatus(s *discordgo.Session, i *discordgo.InteractionCreate, user *database.User, guildID string, targetUser *discordgo.User) {
@@ -310,7 +310,7 @@ func handleBuddyStatus(s *discordgo.Session, i *discordgo.InteractionCreate, use
 				Description: "This buddy doesn't have an active Focus Period right now.",
 				Color:       0xFFA500, // Orange
 			}
-			respondWithEmbed(s, i, embed)
+			respondWithEmbedEphemeral(s, i, embed, true)
 			return
 		}
 
@@ -344,7 +344,7 @@ func handleBuddyStatus(s *discordgo.Session, i *discordgo.InteractionCreate, use
 			},
 		}
 
-		respondWithEmbed(s, i, embed)
+		respondWithEmbedEphemeral(s, i, embed, true)
 		return
 	}
 
@@ -362,7 +362,7 @@ func handleBuddyStatus(s *discordgo.Session, i *discordgo.InteractionCreate, use
 			Description: "You don't have any buddies yet!\n\nUse `/buddy request @user` to send a request.",
 			Color:       0xFFA500, // Orange
 		}
-		respondWithEmbed(s, i, embed)
+		respondWithEmbedEphemeral(s, i, embed, true)
 		return
 	}
 
@@ -392,7 +392,7 @@ func handleBuddyStatus(s *discordgo.Session, i *discordgo.InteractionCreate, use
 		},
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func handleBuddyList(s *discordgo.Session, i *discordgo.InteractionCreate, user *database.User, guildID string) {
@@ -471,7 +471,7 @@ func handleBuddyList(s *discordgo.Session, i *discordgo.InteractionCreate, user 
 		},
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func handleBuddyRemove(s *discordgo.Session, i *discordgo.InteractionCreate, user *database.User, guildID string, targetUser *discordgo.User) {
@@ -494,7 +494,7 @@ func handleBuddyRemove(s *discordgo.Session, i *discordgo.InteractionCreate, use
 		Color:       0xFFA500, // Orange
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 // NotifyBuddiesOfCompletion sends DMs to buddies when a user completes a task

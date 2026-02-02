@@ -134,7 +134,7 @@ func handleFocusStart(s *discordgo.Session, i *discordgo.InteractionCreate, user
 			Description: fmt.Sprintf("You already have an active Focus Period with %d days remaining!\n\nUse `/focus list` to see your goals or `/focus add` to add more goals.", existing.DaysRemaining()),
 			Color:       0xFFA500, // Orange
 		}
-		respondWithEmbed(s, i, embed)
+		respondWithEmbedEphemeral(s, i, embed, true)
 		return
 	}
 
@@ -171,7 +171,7 @@ func handleFocusStart(s *discordgo.Session, i *discordgo.InteractionCreate, user
 			Text: "Bootstrap Hub Bot - Focus on what matters",
 		},
 	}
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func handleFocusAdd(s *discordgo.Session, i *discordgo.InteractionCreate, user *database.User, goal string, openaiClient *openai.Client) {
@@ -189,7 +189,7 @@ func handleFocusAdd(s *discordgo.Session, i *discordgo.InteractionCreate, user *
 			Description: "You don't have an active Focus Period.\n\nUse `/focus start` to begin a new 2-week Focus Period!",
 			Color:       0xFFA500, // Orange
 		}
-		respondWithEmbed(s, i, embed)
+		respondWithEmbedEphemeral(s, i, embed, true)
 		return
 	}
 
@@ -242,7 +242,7 @@ func handleFocusAdd(s *discordgo.Session, i *discordgo.InteractionCreate, user *
 		})
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func handleFocusComplete(s *discordgo.Session, i *discordgo.InteractionCreate, user *database.User, goalNum int) {
@@ -260,7 +260,7 @@ func handleFocusComplete(s *discordgo.Session, i *discordgo.InteractionCreate, u
 			Description: "You don't have an active Focus Period.\n\nUse `/focus start` to begin a new 2-week Focus Period!",
 			Color:       0xFFA500, // Orange
 		}
-		respondWithEmbed(s, i, embed)
+		respondWithEmbedEphemeral(s, i, embed, true)
 		return
 	}
 
@@ -339,7 +339,7 @@ func handleFocusList(s *discordgo.Session, i *discordgo.InteractionCreate, user 
 			Description: "You don't have an active Focus Period.\n\nUse `/focus start` to begin a new 2-week Focus Period!",
 			Color:       0xFFA500, // Orange
 		}
-		respondWithEmbed(s, i, embed)
+		respondWithEmbedEphemeral(s, i, embed, true)
 		return
 	}
 
@@ -390,7 +390,7 @@ func handleFocusList(s *discordgo.Session, i *discordgo.InteractionCreate, user 
 		},
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func handleFocusStatus(s *discordgo.Session, i *discordgo.InteractionCreate, user *database.User) {
@@ -408,7 +408,7 @@ func handleFocusStatus(s *discordgo.Session, i *discordgo.InteractionCreate, use
 			Description: "You don't have an active Focus Period.\n\nUse `/focus start` to begin a new 2-week Focus Period and set goals to track your progress!",
 			Color:       0xFFA500, // Orange
 		}
-		respondWithEmbed(s, i, embed)
+		respondWithEmbedEphemeral(s, i, embed, true)
 		return
 	}
 
@@ -490,7 +490,7 @@ func handleFocusStatus(s *discordgo.Session, i *discordgo.InteractionCreate, use
 		})
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 // buildProgressBar creates a visual progress bar
@@ -502,12 +502,22 @@ func buildProgressBar(percent int) string {
 	return "[" + bar + "]"
 }
 
-// respondWithEmbed sends an embed response
+// respondWithEmbed sends an embed response (public by default)
 func respondWithEmbed(s *discordgo.Session, i *discordgo.InteractionCreate, embed *discordgo.MessageEmbed) {
+	respondWithEmbedEphemeral(s, i, embed, false)
+}
+
+// respondWithEmbedEphemeral sends an embed response with optional ephemeral flag
+func respondWithEmbedEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, embed *discordgo.MessageEmbed, ephemeral bool) {
+	flags := discordgo.MessageFlags(0)
+	if ephemeral {
+		flags = discordgo.MessageFlagsEphemeral
+	}
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Embeds: []*discordgo.MessageEmbed{embed},
+			Flags:  flags,
 		},
 	})
 	if err != nil {
@@ -515,12 +525,12 @@ func respondWithEmbed(s *discordgo.Session, i *discordgo.InteractionCreate, embe
 	}
 }
 
-// respondWithError sends an error message
+// respondWithError sends an error message (always ephemeral to avoid exposing user state)
 func respondWithError(s *discordgo.Session, i *discordgo.InteractionCreate, message string) {
 	embed := &discordgo.MessageEmbed{
 		Title:       "Error",
 		Description: message,
 		Color:       0xFF0000, // Red
 	}
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }

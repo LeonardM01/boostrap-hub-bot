@@ -483,7 +483,7 @@ func handleChallengeValidate(s *discordgo.Session, i *discordgo.InteractionCreat
 		}
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 
 	// Notify the target user
 	channel, err := s.UserChannelCreate(targetUser.ID)
@@ -524,7 +524,7 @@ func handleChallengeList(s *discordgo.Session, i *discordgo.InteractionCreate, u
 			Description: "No challenges found.\n\nCreate one with `/challenge create`!",
 			Color:       0xFFA500, // Orange
 		}
-		respondWithEmbed(s, i, embed)
+		respondWithEmbedEphemeral(s, i, embed, true)
 		return
 	}
 
@@ -557,7 +557,7 @@ func handleChallengeList(s *discordgo.Session, i *discordgo.InteractionCreate, u
 		},
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func handleChallengeView(s *discordgo.Session, i *discordgo.InteractionCreate, user *database.User, challengeID uint) {
@@ -638,7 +638,7 @@ func handleChallengeView(s *discordgo.Session, i *discordgo.InteractionCreate, u
 		})
 	}
 
-	respondWithEmbed(s, i, embed)
+	respondWithEmbedEphemeral(s, i, embed, true)
 }
 
 func getChallengeStatusEmoji(status string) string {

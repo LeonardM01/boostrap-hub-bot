@@ -240,6 +240,135 @@ type MRRStats struct {
 	MilestonesHit  int
 }
 
+// UpdateMRRProjectChannel updates the project channel for a user's MRR reminders
+func UpdateMRRProjectChannel(userID uint, guildID, channelID string) error {
+	settings, err := GetMRRSettings(userID, guildID)
+	if err != nil {
+		return err
+	}
+
+	settings.ProjectChannelID = channelID
+	if err := DB.Save(settings).Error; err != nil {
+		return fmt.Errorf("failed to update MRR project channel: %w", err)
+	}
+
+	return nil
+}
+
+// GetUsersWithProjectChannels gets all users with configured project channels in a guild
+func GetUsersWithProjectChannels(guildID string) ([]MRRSettings, error) {
+	var settings []MRRSettings
+	result := DB.Preload("User").Where("guild_id = ? AND project_channel_id != ''", guildID).Find(&settings)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to fetch users with project channels: %w", result.Error)
+	}
+	return settings, nil
+}
+
+// MRRShowcaseEntry represents an entry in the monthly MRR showcase
+type MRRShowcaseEntry struct {
+	Rank            int
+	DiscordID       string
+	Username        string
+	CurrentAmount   float64
+	PreviousAmount  float64
+	Currency        string
+	GrowthPercent   float64
+}
+
+// GetPublicMRRWithGrowth gets public MRR entries with month-over-month growth data
+func GetPublicMRRWithGrowth(guildID string) ([]MRRShowcaseEntry, error) {
+	var entries []MRRShowcaseEntry
+
+	// Get latest MRR for each user who has public MRR, along with previous month's data
+	now := time.Now()
+	// Start of current month
+	currentMonthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	// Start of previous month
+	previousMonthStart := currentMonthStart.AddDate(0, -1, 0)
+
+	rows, err := DB.Raw(`
+		SELECT
+			u.discord_id,
+			u.username,
+			current_mrr.amount AS current_amount,
+			COALESCE(prev_mrr.amount, 0) AS previous_amount,
+			current_mrr.currency
+		FROM mrr_entries current_mrr
+		JOIN users u ON u.id = current_mrr.user_id
+		JOIN mrr_settings ms ON ms.user_id = current_mrr.user_id AND ms.guild_id = current_mrr.guild_id
+		LEFT JOIN (
+			SELECT user_id, guild_id, amount
+			FROM mrr_entries
+			WHERE guild_id = ?
+			  AND date >= ? AND date < ?
+			  AND date = (
+				SELECT MAX(m2.date) FROM mrr_entries m2
+				WHERE m2.user_id = mrr_entries.user_id
+				  AND m2.guild_id = mrr_entries.guild_id
+				  AND m2.date >= ? AND m2.date < ?
+			  )
+		) prev_mrr ON prev_mrr.user_id = current_mrr.user_id AND prev_mrr.guild_id = current_mrr.guild_id
+		WHERE current_mrr.guild_id = ?
+		  AND ms.is_public = true
+		  AND current_mrr.date = (
+			SELECT MAX(m3.date) FROM mrr_entries m3
+			WHERE m3.user_id = current_mrr.user_id AND m3.guild_id = current_mrr.guild_id
+		  )
+		ORDER BY current_mrr.amount DESC
+	`, guildID, previousMonthStart, currentMonthStart, previousMonthStart, currentMonthStart, guildID).Rows()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch MRR showcase data: %w", err)
+	}
+	defer rows.Close()
+
+	rank := 1
+	for rows.Next() {
+		var entry MRRShowcaseEntry
+		if err := rows.Scan(&entry.DiscordID, &entry.Username, &entry.CurrentAmount, &entry.PreviousAmount, &entry.Currency); err != nil {
+			continue
+		}
+		entry.Rank = rank
+		entry.GrowthPercent = GetMRRGrowth(entry.CurrentAmount, entry.PreviousAmount)
+		entries = append(entries, entry)
+		rank++
+	}
+
+	return entries, nil
+}
+
+// GetAllGuildsWithMRRChannel gets all guild IDs that have an MRR channel configured
+func GetAllGuildsWithMRRChannel() ([]string, error) {
+	var guildIDs []string
+	result := DB.Model(&GuildConfig{}).Where("mrr_channel != ''").Pluck("guild_id", &guildIDs)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to fetch guilds with MRR channel: %w", result.Error)
+	}
+	return guildIDs, nil
+}
+
+// GetTotalCommunityMRR calculates the total public MRR for a guild
+func GetTotalCommunityMRR(guildID string) (float64, error) {
+	var total float64
+	result := DB.Raw(`
+		SELECT COALESCE(SUM(mrr.amount), 0)
+		FROM mrr_entries mrr
+		JOIN mrr_settings ms ON ms.user_id = mrr.user_id AND ms.guild_id = mrr.guild_id
+		WHERE mrr.guild_id = ?
+		  AND ms.is_public = true
+		  AND mrr.date = (
+			SELECT MAX(m2.date) FROM mrr_entries m2
+			WHERE m2.user_id = mrr.user_id AND m2.guild_id = mrr.guild_id
+		  )
+	`, guildID).Scan(&total)
+
+	if result.Error != nil {
+		return 0, fmt.Errorf("failed to calculate total community MRR: %w", result.Error)
+	}
+	return total, nil
+}
+
 func GetMRRStats(userID uint, guildID string) (*MRRStats, error) {
 	stats := &MRRStats{}
 

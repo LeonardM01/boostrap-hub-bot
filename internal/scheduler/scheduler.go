@@ -75,11 +75,18 @@ func (s *Scheduler) runChecks() {
 		s.checkStandupReminders()
 		s.checkChallengeReminders()
 		s.checkExpiredChallenges()
+
+		// MRR update reminder - 7 days before month end
+		daysInMonth := daysInCurrentMonth(now)
+		if now.Day() == daysInMonth-7 {
+			s.sendMRRUpdateReminders()
+		}
 	}
 
 	// Monthly wins summary - first of the month at 10 AM
 	if now.Day() == 1 && hour == 10 {
 		s.postMonthlyWinsSummary()
+		s.postMonthlyMRRShowcase()
 	}
 }
 
@@ -594,4 +601,180 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// daysInCurrentMonth returns the number of days in the current month
+func daysInCurrentMonth(t time.Time) int {
+	// Get the first day of next month, then subtract one day
+	year, month, _ := t.Date()
+	firstOfNextMonth := time.Date(year, month+1, 1, 0, 0, 0, 0, t.Location())
+	lastOfMonth := firstOfNextMonth.AddDate(0, 0, -1)
+	return lastOfMonth.Day()
+}
+
+// postMonthlyMRRShowcase posts the monthly MRR leaderboard to configured channels
+func (s *Scheduler) postMonthlyMRRShowcase() {
+	guildIDs, err := database.GetAllGuildsWithMRRChannel()
+	if err != nil {
+		log.Printf("Error fetching guilds with MRR channel: %v", err)
+		return
+	}
+
+	for _, guildID := range guildIDs {
+		mrrChannel, err := database.GetMRRChannel(guildID)
+		if err != nil || mrrChannel == "" {
+			continue
+		}
+
+		entries, err := database.GetPublicMRRWithGrowth(guildID)
+		if err != nil || len(entries) == 0 {
+			continue
+		}
+
+		// Get month name for title
+		now := time.Now()
+		monthName := now.Format("January 2006")
+
+		// Calculate total community MRR
+		totalMRR, _ := database.GetTotalCommunityMRR(guildID)
+
+		// Build leaderboard description
+		description := fmt.Sprintf("Here's our community's MRR progress for **%s**:\n\n", monthName)
+
+		for i, entry := range entries {
+			if i >= 10 {
+				break
+			}
+
+			medal := ""
+			switch entry.Rank {
+			case 1:
+				medal = "🥇"
+			case 2:
+				medal = "🥈"
+			case 3:
+				medal = "🥉"
+			default:
+				medal = fmt.Sprintf("`#%d`", entry.Rank)
+			}
+
+			// Growth indicator
+			growthStr := ""
+			if entry.PreviousAmount > 0 {
+				if entry.GrowthPercent > 0 {
+					growthStr = fmt.Sprintf(" 📈 +%.1f%%", entry.GrowthPercent)
+				} else if entry.GrowthPercent < 0 {
+					growthStr = fmt.Sprintf(" 📉 %.1f%%", entry.GrowthPercent)
+				} else {
+					growthStr = " ➡️ 0%"
+				}
+			}
+
+			currencySymbol := getCurrencySymbol(entry.Currency)
+			description += fmt.Sprintf("%s **%s** - %s%.2f/mo%s\n",
+				medal, entry.Username, currencySymbol, entry.CurrentAmount, growthStr)
+		}
+
+		embed := &discordgo.MessageEmbed{
+			Title:       fmt.Sprintf("📊 Monthly MRR Showcase - %s", monthName),
+			Description: description,
+			Color:       0xFFD700, // Gold
+			Fields: []*discordgo.MessageEmbedField{
+				{
+					Name:   "Total Community MRR",
+					Value:  fmt.Sprintf("$%.2f/mo", totalMRR),
+					Inline: false,
+				},
+			},
+			Footer: &discordgo.MessageEmbedFooter{
+				Text: "Track your MRR with /mrr update | Share with /mrr public",
+			},
+		}
+
+		_, err = s.session.ChannelMessageSendEmbed(mrrChannel, embed)
+		if err != nil {
+			log.Printf("Error posting MRR showcase to channel %s: %v", mrrChannel, err)
+		} else {
+			log.Printf("Posted monthly MRR showcase to channel %s", mrrChannel)
+		}
+	}
+}
+
+// sendMRRUpdateReminders sends reminders to users with configured project channels
+func (s *Scheduler) sendMRRUpdateReminders() {
+	guildIDs, err := database.GetAllGuildsWithMRRChannel()
+	if err != nil {
+		log.Printf("Error fetching guilds for MRR reminders: %v", err)
+		return
+	}
+
+	for _, guildID := range guildIDs {
+		settings, err := database.GetUsersWithProjectChannels(guildID)
+		if err != nil {
+			log.Printf("Error fetching users with project channels for guild %s: %v", guildID, err)
+			continue
+		}
+
+		now := time.Now()
+		daysUntilMonthEnd := daysInCurrentMonth(now) - now.Day()
+
+		for _, setting := range settings {
+			// Get user's current MRR
+			latestMRR, _ := database.GetLatestMRR(setting.UserID, guildID)
+
+			var currentMRRStr string
+			if latestMRR != nil {
+				currencySymbol := getCurrencySymbol(latestMRR.Currency)
+				currentMRRStr = fmt.Sprintf("%s%.2f", currencySymbol, latestMRR.Amount)
+			} else {
+				currentMRRStr = "Not tracked yet"
+			}
+
+			embed := &discordgo.MessageEmbed{
+				Title:       "📊 MRR Update Reminder",
+				Description: fmt.Sprintf("<@%s>, the month is almost over! Don't forget to update your MRR.", setting.User.DiscordID),
+				Color:       0x5865F2, // Blurple
+				Fields: []*discordgo.MessageEmbedField{
+					{
+						Name:   "Current MRR",
+						Value:  currentMRRStr,
+						Inline: true,
+					},
+					{
+						Name:   "Days Until Month End",
+						Value:  fmt.Sprintf("%d days", daysUntilMonthEnd),
+						Inline: true,
+					},
+				},
+				Footer: &discordgo.MessageEmbedFooter{
+					Text: "Use /mrr update <amount> to log your current MRR",
+				},
+			}
+
+			_, err := s.session.ChannelMessageSendEmbed(setting.ProjectChannelID, embed)
+			if err != nil {
+				log.Printf("Error sending MRR reminder to channel %s: %v", setting.ProjectChannelID, err)
+			} else {
+				log.Printf("Sent MRR update reminder to user %s in channel %s", setting.User.DiscordID, setting.ProjectChannelID)
+			}
+		}
+	}
+}
+
+// getCurrencySymbol returns the symbol for a currency code (scheduler local copy)
+func getCurrencySymbol(currency string) string {
+	switch currency {
+	case "USD":
+		return "$"
+	case "EUR":
+		return "€"
+	case "GBP":
+		return "£"
+	case "CAD":
+		return "C$"
+	case "AUD":
+		return "A$"
+	default:
+		return "$"
+	}
 }
