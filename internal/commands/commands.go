@@ -20,6 +20,7 @@ func GetAllCommands() []*Command {
 		pingCommand(),
 		helpCommand(),
 		focusCommand(),
+		configCommand(),
 	}
 }
 
@@ -80,18 +81,23 @@ func helpCommand() *Command {
 				Color:       0x5865F2, // Discord blurple
 				Fields: []*discordgo.MessageEmbedField{
 					{
+						Name:   "👋 Onboarding",
+						Value:  "New members receive the **anon** role and can onboard via the welcome channel. Completing onboarding creates your project role, category, and channel.",
+						Inline: false,
+					},
+					{
 						Name:   "🎯 Focus Period Commands",
 						Value:  "`/focus start` - Start a new 2-week Focus Period\n`/focus add <goal>` - Add a goal to your period\n`/focus complete <#>` - Mark a goal as done\n`/focus list` - View your goals\n`/focus status` - See your progress",
 						Inline: false,
 					},
 					{
-						Name:   "📋 General Commands",
-						Value:  "`/ping` - Check if the bot is responsive\n`/help` - Show this help message",
+						Name:   "⚙️ Admin Commands",
+						Value:  "`/config welcome-channel <channel>` - Set onboarding channel\n`/config view` - View current settings",
 						Inline: false,
 					},
 					{
-						Name:   "🚀 About Focus Periods",
-						Value:  "Set goals for 2-week sprints and track your progress. Stay accountable with reminders on days 3, 7, 10, 12, and 13!",
+						Name:   "📋 General Commands",
+						Value:  "`/ping` - Check if the bot is responsive\n`/help` - Show this help message",
 						Inline: false,
 					},
 				},

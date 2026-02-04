@@ -6,12 +6,34 @@ import (
 	"gorm.io/gorm"
 )
 
+// GuildConfig stores per-guild bot configuration
+type GuildConfig struct {
+	gorm.Model
+	GuildID          string `gorm:"uniqueIndex;not null"` // Discord guild/server ID
+	WelcomeChannelID string // Channel where onboarding messages are sent
+}
+
+// Project represents an onboarded founder project
+type Project struct {
+	gorm.Model
+	GuildID    string `gorm:"index;not null"`
+	UserID     uint   `gorm:"index;not null"`
+	User       User   `gorm:"foreignKey:UserID"`
+	Name       string `gorm:"not null"`
+	Website    string
+	Category   string // Project category (SaaS, E-commerce, etc.)
+	RoleID     string // Discord role ID created for this project
+	CategoryID string // Discord category (channel group) ID
+	ChannelID  string // Discord text channel ID under the category
+}
+
 // User represents a Discord user in the system
 type User struct {
 	gorm.Model
-	DiscordID string `gorm:"uniqueIndex;not null"` // Discord user ID
-	GuildID   string `gorm:"index;not null"`       // Discord guild/server ID
-	Username  string // Cached username for display
+	DiscordID  string `gorm:"uniqueIndex;not null"` // Discord user ID
+	GuildID    string `gorm:"index;not null"`        // Discord guild/server ID
+	Username   string // Cached username for display
+	Onboarded  bool   `gorm:"default:false"` // Whether user completed onboarding
 }
 
 // FocusPeriod represents a 2-week goal period (like a sprint)

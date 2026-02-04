@@ -29,19 +29,18 @@ func New(cfg *config.Config) (*Bot, error) {
 		Config:  cfg,
 	}
 
-	// Register the interaction handler
+	// Register handlers
 	session.AddHandler(bot.handleInteraction)
-
-	// Register the ready handler
 	session.AddHandler(bot.handleReady)
+	session.AddHandler(commands.HandleMemberJoin)
 
 	return bot, nil
 }
 
 // Start opens the Discord connection and starts listening
 func (b *Bot) Start() error {
-	// Set intents - we need guilds for slash commands
-	b.Session.Identify.Intents = discordgo.IntentsGuilds
+	// Set intents - guilds for slash commands, guild members for join events
+	b.Session.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMembers
 
 	err := b.Session.Open()
 	if err != nil {
@@ -124,31 +123,49 @@ func (b *Bot) handleReady(s *discordgo.Session, r *discordgo.Ready) {
 	}
 }
 
-// handleInteraction handles all incoming interactions (slash commands)
+// handleInteraction handles all incoming interactions (slash commands, buttons, modals)
 func (b *Bot) handleInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	if i.Type != discordgo.InteractionApplicationCommand {
-		return
-	}
+	switch i.Type {
+	case discordgo.InteractionApplicationCommand:
+		handlers := commands.GetHandlers()
+		cmdName := i.ApplicationCommandData().Name
+		if handler, ok := handlers[cmdName]; ok {
+			handler(s, i)
+		} else {
+			log.Printf("Unknown command: %s", cmdName)
+		}
 
-	handlers := commands.GetHandlers()
-	cmdName := i.ApplicationCommandData().Name
+	case discordgo.InteractionMessageComponent:
+		customID := i.MessageComponentData().CustomID
+		switch customID {
+		case commands.OnboardingButtonID:
+			commands.HandleOnboardingButton(s, i)
+		default:
+			log.Printf("Unknown component interaction: %s", customID)
+		}
 
-	if handler, ok := handlers[cmdName]; ok {
-		handler(s, i)
-	} else {
-		log.Printf("Unknown command: %s", cmdName)
+	case discordgo.InteractionModalSubmit:
+		customID := i.ModalSubmitData().CustomID
+		switch customID {
+		case commands.OnboardingModalID:
+			commands.HandleOnboardingModalSubmit(s, i)
+		default:
+			log.Printf("Unknown modal submission: %s", customID)
+		}
 	}
 }
 
 // GetInviteURL generates the bot invite URL with necessary permissions
 func (b *Bot) GetInviteURL() string {
 	// Permissions:
+	// - Manage Roles (268435456)
+	// - Manage Channels (16)
 	// - Send Messages (2048)
 	// - Use Slash Commands (2147483648)
 	// - Embed Links (16384)
 	// - Read Message History (65536)
-	// Combined: 2147567616
-	permissions := "2147567616"
+	// Combined: 2415919120
+	permissions := "2415919120"
 	return fmt.Sprintf(
 		"https://discord.com/api/oauth2/authorize?client_id=%s&permissions=%s&scope=bot%%20applications.commands",
 		b.Config.ApplicationID,

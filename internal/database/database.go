@@ -24,7 +24,7 @@ func Initialize(dbPath string) error {
 	}
 
 	// Run migrations
-	err = DB.AutoMigrate(&User{}, &FocusPeriod{}, &Task{})
+	err = DB.AutoMigrate(&GuildConfig{}, &User{}, &Project{}, &FocusPeriod{}, &Task{})
 	if err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
@@ -229,4 +229,79 @@ func GetFocusPeriodsForReminder(guildID string, dayNumber int) ([]FocusPeriod, e
 	}
 
 	return needsReminder, nil
+}
+
+// --- Guild Config Operations ---
+
+// GetGuildConfig returns the configuration for a guild
+func GetGuildConfig(guildID string) (*GuildConfig, error) {
+	var config GuildConfig
+	result := DB.Where("guild_id = ?", guildID).First(&config)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to fetch guild config: %w", result.Error)
+	}
+	return &config, nil
+}
+
+// SetWelcomeChannel sets the welcome channel for a guild
+func SetWelcomeChannel(guildID, channelID string) error {
+	var config GuildConfig
+	result := DB.Where("guild_id = ?", guildID).First(&config)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		config = GuildConfig{
+			GuildID:          guildID,
+			WelcomeChannelID: channelID,
+		}
+		return DB.Create(&config).Error
+	}
+	if result.Error != nil {
+		return result.Error
+	}
+
+	config.WelcomeChannelID = channelID
+	return DB.Save(&config).Error
+}
+
+// --- Project Operations ---
+
+// CreateProject stores a new founder project
+func CreateProject(guildID string, userID uint, name, website, category, roleID, categoryID, channelID string) (*Project, error) {
+	project := Project{
+		GuildID:    guildID,
+		UserID:     userID,
+		Name:       name,
+		Website:    website,
+		Category:   category,
+		RoleID:     roleID,
+		CategoryID: categoryID,
+		ChannelID:  channelID,
+	}
+	if err := DB.Create(&project).Error; err != nil {
+		return nil, fmt.Errorf("failed to create project: %w", err)
+	}
+	return &project, nil
+}
+
+// GetProjectByUser returns the project for a user in a guild
+func GetProjectByUser(userID uint, guildID string) (*Project, error) {
+	var project Project
+	result := DB.Where("user_id = ? AND guild_id = ?", userID, guildID).First(&project)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to fetch project: %w", result.Error)
+	}
+	return &project, nil
+}
+
+// MarkUserOnboarded marks a user as having completed onboarding
+func MarkUserOnboarded(userID uint) error {
+	return DB.Model(&User{}).Where("id = ?", userID).Update("onboarded", true).Error
 }
