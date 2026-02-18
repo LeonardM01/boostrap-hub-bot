@@ -308,6 +308,32 @@ var StreakMilestones = map[int]int{
 	90: 200, // 90 days = +200 points
 }
 
+// ProjectMapping maps a Discord role to a category channel for project management
+type ProjectMapping struct {
+	gorm.Model
+	GuildID      string `gorm:"uniqueIndex:idx_guild_role_mapping;not null"`
+	RoleID       string `gorm:"uniqueIndex:idx_guild_role_mapping;not null"`
+	RoleName     string
+	CategoryID   string `gorm:"not null"`
+	CategoryName string
+	MaxChannels  int `gorm:"default:5"`
+}
+
+// DefaultMaxChannels is the default max channels per user per project category
+const DefaultMaxChannels = 5
+
+// ProjectChannel tracks channels created via /project for limit enforcement
+type ProjectChannel struct {
+	gorm.Model
+	GuildID    string `gorm:"index;not null"`
+	UserID     string `gorm:"index;not null"` // Discord user ID
+	ChannelID  string `gorm:"uniqueIndex;not null"`
+	CategoryID string `gorm:"index;not null"`
+	RoleID     string `gorm:"index;not null"`
+	Name       string
+	Type       string // "text", "voice", or "thread"
+}
+
 // FocusPeriodDuration is the length of a focus period
 const FocusPeriodDuration = 14 * 24 * time.Hour // 2 weeks
 

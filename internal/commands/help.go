@@ -67,6 +67,13 @@ var helpCategories = []HelpCategory{
 		Commands:    "**Public Resources**\n`/resource submit` - Submit a resource for voting\n`/resource list` - Browse approved resources\n\n**Private Resources**\n`/resource private add` - Add a private resource\n`/resource private list` - List resources you can access\n`/resource private remove` - Remove your private resource",
 	},
 	{
+		ID:          "project",
+		Name:        "Project Channels",
+		Emoji:       "\U0001F4C1", // File folder emoji
+		Description: "Manage channels in your project category",
+		Commands:    "**User Commands**\n`/project create-channel` - Create a text, voice, or thread channel\n`/project list-channels` - View your channels and quota\n\n**Admin Commands**\n`/project admin setup` - Map a role to a category\n`/project admin remove-mapping` - Remove a mapping\n`/project admin list-mappings` - Show all mappings",
+	},
+	{
 		ID:          "admin",
 		Name:        "Admin",
 		Emoji:       "\u2699\uFE0F", // Gear emoji
@@ -119,7 +126,7 @@ func buildMainHelpEmbed() *discordgo.MessageEmbed {
 			},
 			{
 				Name:   "Categories",
-				Value:  "\U0001F3AF Goal Tracking \u2022 \U0001F4DD Daily Check-ins \u2022 \U0001F389 Wins\n\U0001F91D Accountability \u2022 \U0001F4B0 Revenue \u2022 \U0001F3C6 Leaderboards\n\U0001F4DA Resources \u2022 \u2699\uFE0F Admin",
+				Value:  "\U0001F3AF Goal Tracking \u2022 \U0001F4DD Daily Check-ins \u2022 \U0001F389 Wins\n\U0001F91D Accountability \u2022 \U0001F4B0 Revenue \u2022 \U0001F3C6 Leaderboards\n\U0001F4DA Resources \u2022 \U0001F4C1 Project Channels \u2022 \u2699\uFE0F Admin",
 				Inline: false,
 			},
 		},

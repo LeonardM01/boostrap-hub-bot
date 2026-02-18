@@ -154,7 +154,8 @@ func GetApprovedPublicResources(guildID string, category string, search string) 
 	query := DB.Where("guild_id = ? AND status = ?", guildID, ResourceStatusApproved)
 
 	if category != "" {
-		query = query.Where("category = ?", category)
+		categoryPattern := "%" + strings.ToLower(category) + "%"
+		query = query.Where("LOWER(category) LIKE ?", categoryPattern)
 	}
 
 	if search != "" {
@@ -252,7 +253,8 @@ func GetPrivateResourcesForUser(guildID string, userRoleIDs []string, category s
 		Group("private_resources.id")
 
 	if category != "" {
-		query = query.Where("private_resources.category = ?", category)
+		categoryPattern := "%" + strings.ToLower(category) + "%"
+		query = query.Where("LOWER(private_resources.category) LIKE ?", categoryPattern)
 	}
 
 	if search != "" {

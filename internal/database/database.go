@@ -49,6 +49,9 @@ func Initialize(dbPath string) error {
 		// Phase 5: MRR Tracking
 		&MRREntry{},
 		&MRRSettings{},
+		// Phase 6: Project Channel Management
+		&ProjectMapping{},
+		&ProjectChannel{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)

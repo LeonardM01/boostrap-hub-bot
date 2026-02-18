@@ -173,8 +173,11 @@ func (b *Bot) GetInviteURL() string {
 	// - Embed Links (16384)
 	// - Read Message History (65536)
 	// - Add Reactions (64)
-	// Combined: 2147567680
-	permissions := "2147567680"
+	// - Manage Channels (16)
+	// - Manage Threads (17179869184)
+	// - Create Public Threads (34359738368)
+	// Combined: 53687175248
+	permissions := "53687175248"
 	return fmt.Sprintf(
 		"https://discord.com/api/oauth2/authorize?client_id=%s&permissions=%s&scope=bot%%20applications.commands",
 		b.Config.ApplicationID,

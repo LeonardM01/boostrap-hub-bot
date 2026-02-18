@@ -30,6 +30,7 @@ func GetAllCommands(openaiClient *openai.Client) []*Command {
 		buddyCommand(),
 		challengeCommand(),
 		mrrCommand(),
+		projectCommand(),
 	}
 }
 
